@@ -1,0 +1,58 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        generate_statistics: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        "[http.server.requests]": true
+        "[db.operation.time]": true
+      percentiles:
+        "[http.server.requests]": 0.5, 0.95, 0.99
+        "[db.operation.time]": 0.5, 0.95, 0.99
+      sla:
+        "[http.server.requests]": 10ms, 100ms, 500ms
+        "[db.operation.time]": 1ms, 10ms, 100ms
+
+---
+spring:
+  config:
+    activate:
+      on-profile: mysql-test
+  datasource:
+    url: jdbc:mysql://localhost:3306/db_comparison?useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+---
+spring:
+  config:
+    activate:
+      on-profile: postgres-test
+  datasource:
+    url: jdbc:postgresql://localhost:5432/db_comparison
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
