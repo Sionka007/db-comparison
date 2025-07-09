@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS product_category (
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
-    FOREIGN KEY (parent_category_id) REFERENCES product_category(id)
+    FOREIGN KEY (parent_category_id) REFERENCES product_category(id) ON DELETE CASCADE
 );
 
 -- Tabela marek

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Order;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
@@ -22,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 @SpringBootTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@Transactional
 public class DeletePerformanceTest {
 
     @Autowired private DatabaseMetrics databaseMetrics;
@@ -85,6 +85,8 @@ public class DeletePerformanceTest {
 
     @Test @Order(5)
     void testDeleteProducts() {
+        reviewRepository.deleteAll();
+        movementRepository.deleteAll();
         performDeleteTest("Usuwanie produktów", "delete_products",
                 productRepository.findAll(),
                 productRepository::delete,

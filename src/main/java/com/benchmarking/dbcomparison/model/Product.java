@@ -13,9 +13,15 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(length = 255)
     private String name;
+
+    @Column(length = 1000)
     private String description;
+
+    @Column(precision = 10, scale = 2)
     private BigDecimal price;
+
     private Integer stockQuantity;
 
     @ManyToOne
@@ -26,12 +32,16 @@ public class Product {
     @JoinColumn(name = "brand_id")
     private Brand brand;
 
+    @Column(precision = 10, scale = 2)
     private BigDecimal weight;
+
+    @Column(length = 50)
     private String dimensions;
 
-    @Column(unique = true)
+    @Column(unique = true, length = 50)
     private String sku;
 
+    @Column(length = 50)
     private String barcode;
     private Boolean isAvailable = true;
     private Integer minStockLevel;

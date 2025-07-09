@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Order;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
@@ -295,4 +296,18 @@ public class InsertPerformanceTest {
             log.error("Błąd podczas zapisu do pliku CSV", e);
         }
     }
+
+    @AfterAll
+    void cleanDatabaseAfterAll() {
+        movementRepository.deleteAll();
+        reviewRepository.deleteAll();
+        orderRepository.deleteAll();
+        productRepository.deleteAll();
+        categoryRepository.deleteAll();
+        brandRepository.deleteAll();
+        customerRepository.deleteAll();
+
+        log.info("Baza danych została wyczyszczona po zakończeniu testów InsertPerformanceTest.");
+    }
+
 }

@@ -21,7 +21,11 @@ public class ProductReview {
     private Customer customer;
 
     private Integer rating;
+
+    @Column(length = 255)
     private String title;
+
+    @Column(columnDefinition = "TEXT")
     private String comment;
 
     @Column(name = "is_verified")

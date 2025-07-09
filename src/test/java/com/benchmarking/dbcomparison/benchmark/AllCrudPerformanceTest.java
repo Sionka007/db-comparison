@@ -2,6 +2,7 @@ package com.benchmarking.dbcomparison.benchmark;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -22,6 +23,19 @@ public class AllCrudPerformanceTest {
 
     private String timestamp;
 
+
+    @Autowired
+    private InsertPerformanceTest insertTests;
+
+    @Autowired
+    private ReadPerformanceTest readTests;
+
+    @Autowired
+    private UpdatePerformanceTest updateTests;
+
+    @Autowired
+    private DeletePerformanceTest deleteTests;
+
     @BeforeAll
     void setUp() {
         timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
@@ -33,7 +47,7 @@ public class AllCrudPerformanceTest {
     @Order(1)
     void runInsertTests() {
         log.info("Uruchamiam testy INSERT...");
-        InsertPerformanceTest insertTests = new InsertPerformanceTest();
+        insertTests.cleanDatabaseAfterAll();
         insertTests.setUp();
         insertTests.testCustomerInsertPerformance();
         insertTests.testBrandAndCategoryInsertPerformance();
@@ -48,7 +62,6 @@ public class AllCrudPerformanceTest {
     @Order(2)
     void runReadTests() {
         log.info("Uruchamiam testy READ...");
-        ReadPerformanceTest readTests = new ReadPerformanceTest();
         readTests.testReadAllCustomers();
         readTests.testReadAllProducts();
         readTests.testReadAllOrdersWithJoins();
@@ -60,7 +73,6 @@ public class AllCrudPerformanceTest {
     @Order(3)
     void runUpdateTests() {
         log.info("Uruchamiam testy UPDATE...");
-        UpdatePerformanceTest updateTests = new UpdatePerformanceTest();
         updateTests.testUpdateProductPrices();
         updateTests.testUpdateCustomerEmails();
         updateTests.testUpdateOrderStatus();
@@ -71,7 +83,6 @@ public class AllCrudPerformanceTest {
     @Order(4)
     void runDeleteTests() {
         log.info("Uruchamiam testy DELETE...");
-        DeletePerformanceTest deleteTests = new DeletePerformanceTest();
         deleteTests.testDeleteOrderItems();
         deleteTests.testDeleteOrders();
         deleteTests.testDeleteProducts();

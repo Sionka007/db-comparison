@@ -24,7 +24,7 @@ public class DataGenerator {
         Customer customer = new Customer();
         customer.setFirstName(faker.name().firstName());
         customer.setLastName(faker.name().lastName());
-        customer.setEmail(faker.internet().emailAddress());
+        customer.setEmail(faker.internet().emailAddress(UUID.randomUUID().toString()));
         customer.setPhoneNumber(faker.phoneNumber().phoneNumber());
         customer.setDateOfBirth(LocalDate.now().minusYears(random.nextInt(18, 80)));
         customer.setAddressStreet(faker.address().streetAddress());
@@ -66,17 +66,19 @@ public class DataGenerator {
 
     public Product generateProduct(Brand brand, ProductCategory category) {
         Product product = new Product();
-        product.setName(faker.commerce().productName());
-        product.setDescription(faker.lorem().paragraph());
+        product.setName(truncate(faker.commerce().productName(), 255));
+        product.setDescription(truncate(faker.lorem().paragraph(), 1000));
         product.setPrice(new BigDecimal(faker.commerce().price().replace(",", ".")));
         product.setStockQuantity(random.nextInt(0, 1000));
         product.setCategory(category);
         product.setBrand(brand);
         product.setWeight(BigDecimal.valueOf(random.nextDouble(0.1, 10.0)));
-        product.setDimensions(random.nextInt(10, 100) + "x" + random.nextInt(10, 100) + "x" + random.nextInt(10, 100));
-        product.setSku(faker.code().isbn13());
-        product.setBarcode(faker.code().ean13());
-        product.setIsAvailable(true);  // Zmienione z setAvailable na setIsAvailable
+        product.setDimensions(truncate(random.nextInt(10, 100) + "x" + random.nextInt(10, 100) + "x" + random.nextInt(10, 100), 50));
+        // Tu zmiana:
+        String uniqueSku = "SKU-" + UUID.randomUUID().toString();
+        product.setSku(uniqueSku);
+        product.setBarcode(truncate(faker.code().ean13(), 50));
+        product.setIsAvailable(true);
         product.setMinStockLevel(10);
         product.setMaxStockLevel(100);
         product.setRating(BigDecimal.valueOf(random.nextDouble(1.0, 5.0)));
@@ -85,6 +87,7 @@ public class DataGenerator {
         product.setUpdatedAt(LocalDateTime.now());
         return product;
     }
+
 
     public Order generateOrder(Customer customer, List<Product> availableProducts) {
         Order order = new Order();
@@ -122,14 +125,15 @@ public class DataGenerator {
         return order;
     }
 
+
     public ProductReview generateReview(Product product, Customer customer) {
         ProductReview review = new ProductReview();
         review.setProduct(product);
         review.setCustomer(customer);
         review.setRating(random.nextInt(1, 6));
-        review.setTitle(faker.lorem().sentence(3));
-        review.setComment(faker.lorem().paragraph());
-        review.setIsVerified(false);  // Zmienione z setVerified na setIsVerified
+        review.setTitle(truncate(faker.lorem().sentence(3), 255));
+        review.setComment(truncate(faker.lorem().paragraph(), 255));
+        review.setIsVerified(false);
         review.setHelpfulVotes(random.nextInt(0, 50));
         review.setCreatedAt(LocalDateTime.now().minusDays(random.nextInt(30)));
         review.setUpdatedAt(LocalDateTime.now());
@@ -165,5 +169,64 @@ public class DataGenerator {
         item.setCreatedAt(order.getCreatedAt());
         item.setUpdatedAt(order.getUpdatedAt());
         return item;
+    }
+
+    public Product generateProductWithKeyword(Brand brand, ProductCategory category, String keywordInName, String keywordInDescription) {
+        Product product = new Product();
+
+        // Wstawiamy wymuszony fragment do nazwy produktu z fakerem dla reszty nazwy
+        String fakeName = faker.commerce().productName();
+        // np. dopisz "Pro" na początek lub w środku nazwy
+        product.setName(truncate(keywordInName + " " + fakeName, 255));
+
+        // W opisie wymuszamy obecność słowa np. "wyjątkowy"
+        String fakeDescription = faker.lorem().paragraph();
+        product.setDescription(truncate(keywordInDescription + " " + fakeDescription, 1000));
+
+        product.setPrice(new BigDecimal(faker.commerce().price().replace(",", ".")));
+        product.setStockQuantity(random.nextInt(0, 1000));
+        product.setCategory(category);
+        product.setBrand(brand);
+        product.setWeight(BigDecimal.valueOf(random.nextDouble(0.1, 10.0)));
+        product.setDimensions(truncate(random.nextInt(10, 100) + "x" + random.nextInt(10, 100) + "x" + random.nextInt(10, 100), 50));
+        String uniqueSku = "SKU-" + UUID.randomUUID().toString();
+        product.setSku(uniqueSku);
+        product.setBarcode(truncate(faker.code().ean13(), 50));
+        product.setIsAvailable(true);
+        product.setMinStockLevel(10);
+        product.setMaxStockLevel(100);
+        product.setRating(BigDecimal.valueOf(random.nextDouble(1.0, 5.0)));
+        product.setReviewCount(random.nextInt(0, 100));
+        product.setCreatedAt(LocalDateTime.now().minusDays(random.nextInt(365)));
+        product.setUpdatedAt(LocalDateTime.now());
+
+        return product;
+    }
+
+    public List<Product> generateMixedProducts(Brand brand, ProductCategory category, String keywordInName, String keywordInDescription, int totalCount, double keywordRatio) {
+        List<Product> products = new ArrayList<>();
+        int countWithKeyword = (int) (totalCount * keywordRatio);
+        int countWithoutKeyword = totalCount - countWithKeyword;
+
+        // Generuj produkty z keywordami
+        for (int i = 0; i < countWithKeyword; i++) {
+            products.add(generateProductWithKeyword(brand, category, keywordInName, keywordInDescription));
+        }
+
+        // Generuj produkty bez keywordów
+        for (int i = 0; i < countWithoutKeyword; i++) {
+            products.add(generateProduct(brand, category));
+        }
+
+        return products;
+    }
+
+
+
+    private String truncate(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 }

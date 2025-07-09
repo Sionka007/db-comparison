@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS product_category (
     is_active BOOLEAN DEFAULT true,
     created_at DATETIME,
     updated_at DATETIME,
-    FOREIGN KEY (parent_category_id) REFERENCES product_category(id)
+    FOREIGN KEY (parent_category_id) REFERENCES product_category(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS brand (
