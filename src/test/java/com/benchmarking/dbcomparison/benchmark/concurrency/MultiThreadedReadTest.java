@@ -48,11 +48,9 @@ public class MultiThreadedReadTest {
         CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
         AtomicInteger successCounter = new AtomicInteger();
         AtomicInteger errorCounter = new AtomicInteger();
-
         CopyOnWriteArrayList<Long> threadDurations = new CopyOnWriteArrayList<>();
 
         long startTime = System.nanoTime();
-
         int recordsPerThread = TOTAL_RECORDS / THREAD_COUNT;
 
         for (int i = 0; i < THREAD_COUNT; i++) {
@@ -65,7 +63,6 @@ public class MultiThreadedReadTest {
                 long threadStart = System.nanoTime();
 
                 try {
-                    // Odczyt każdego klienta z bazy po ID
                     customersSlice.forEach(c -> {
                         if (customerRepository.findById(c.getId()).isPresent()) {
                             successCounter.incrementAndGet();
@@ -76,6 +73,7 @@ public class MultiThreadedReadTest {
 
                     databaseMetrics.incrementDatabaseOperations(METRIC_NAME, activeProfile);
                     databaseMetrics.recordDataSize(METRIC_NAME, activeProfile, customersSlice.size());
+
                 } catch (Exception e) {
                     log.error("Błąd w wątku READ", e);
                     databaseMetrics.incrementDatabaseErrors(METRIC_NAME, activeProfile);
@@ -95,23 +93,30 @@ public class MultiThreadedReadTest {
 
         long totalDuration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
         double avgThreadTime = threadDurations.stream().mapToLong(Long::longValue).average().orElse(0);
+        double opsPerSecond = totalDuration > 0 ? successCounter.get() / (totalDuration / 1000.0) : 0;
 
         log.info("Zakończono test wielowątkowy READ: {} rekordów w {} ms", successCounter.get(), totalDuration);
 
-        logPerformance(totalDuration, avgThreadTime, successCounter.get(), errorCounter.get(), threadDurations.size());
+        logPerformance(totalDuration, avgThreadTime, successCounter.get(), errorCounter.get(), threadDurations.size(), opsPerSecond);
     }
 
-    private void logPerformance(long totalDuration, double avgThreadTime, int totalSuccess, int totalErrors, int threads) {
+    private void logPerformance(long totalDuration, double avgThreadTime, int totalSuccess, int totalErrors, int threads, double opsPerSecond) {
         File file = new File("performance-multithread-read.csv");
-        boolean fileExists = file.exists();
+        boolean writeHeader = !file.exists() || file.length() == 0;
 
         try (FileWriter writer = new FileWriter(file, true)) {
-            if (!fileExists) {
-                writer.write("Operacja,Czas całkowity[ms],Śr. czas wątku[ms],Wątki,Sukcesy,Błędy,Profil\n");
+            if (writeHeader) {
+                writer.write("Operacja,Czas całkowity[ms],Śr. czas wątku[ms],Wątki,Sukcesy,Błędy,Operacji/s,Profil,db.operations,db.errors,db.queries.failed,db.operation.time\n");
             }
-            writer.write(String.format(
-                    "Wielowątkowy READ,%d,%d,%d,%d,%d,%s\n",
-                    totalDuration, (int) avgThreadTime, threads, totalSuccess, totalErrors, activeProfile));
+
+            double operations = databaseMetrics.getOperationsCount(METRIC_NAME, activeProfile);
+            double errors = databaseMetrics.getErrorsCount(METRIC_NAME, activeProfile);
+            double failedQueries = databaseMetrics.getFailedQueriesCount();
+            double totalTime = databaseMetrics.getTotalOperationTimeMillis(METRIC_NAME, activeProfile);
+
+            writer.write(String.format("Wielowątkowy READ,%d,%.0f,%d,%d,%d,%.2f,%s,%.0f,%.0f,%.0f,%.0f\n",
+                    totalDuration, avgThreadTime, threads, totalSuccess, totalErrors, opsPerSecond,
+                    activeProfile, operations, errors, failedQueries, totalTime));
         } catch (IOException e) {
             log.error("Błąd zapisu wyników wielowątkowego READ do CSV", e);
         }

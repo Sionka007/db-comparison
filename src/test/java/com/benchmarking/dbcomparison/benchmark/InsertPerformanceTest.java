@@ -50,7 +50,7 @@ public class InsertPerformanceTest {
     private long testStartTime;
 
     @BeforeAll
-    void setUp() {
+    public void setUp() {
         dataGenerator = new DataGenerator();
         customers = new ArrayList<>();
         brands = new ArrayList<>();
@@ -79,7 +79,7 @@ public class InsertPerformanceTest {
     }
 
     @Test @Order(1)
-    void testCustomerInsertPerformance() {
+    public void testCustomerInsertPerformance() {
         final String label = "Dodawanie klientów";
         final String metricName = "customer_insert";
 
@@ -107,7 +107,7 @@ public class InsertPerformanceTest {
     }
 
     @Test @Order(2)
-    void testBrandAndCategoryInsertPerformance() {
+    public void testBrandAndCategoryInsertPerformance() {
         final String label = "Dodawanie marek i kategorii";
         final String metricName = "brand_category_insert";
 
@@ -146,7 +146,7 @@ public class InsertPerformanceTest {
     }
 
     @Test @Order(3)
-    void testProductInsertPerformance() {
+    public void testProductInsertPerformance() {
         final String label = "Dodawanie produktów";
         final String metricName = "product_insert";
 
@@ -179,7 +179,7 @@ public class InsertPerformanceTest {
     }
 
     @Test @Order(4)
-    void testOrderInsertPerformance() {
+    public void testOrderInsertPerformance() {
         final String label = "Dodawanie zamówień";
         final String metricName = "order_insert";
 
@@ -211,7 +211,7 @@ public class InsertPerformanceTest {
     }
 
     @Test @Order(5)
-    void testProductReviewInsertPerformance() {
+    public void testProductReviewInsertPerformance() {
         final String label = "Dodawanie opinii o produktach";
         final String metricName = "product_review_insert";
 
@@ -244,7 +244,7 @@ public class InsertPerformanceTest {
     }
 
     @Test @Order(6)
-    void testInventoryMovementInsertPerformance() {
+    public void testInventoryMovementInsertPerformance() {
         final String label = "Dodawanie ruchów magazynowych";
         final String metricName = "inventory_movement_insert";
 
@@ -298,7 +298,7 @@ public class InsertPerformanceTest {
     }
 
     @AfterAll
-    void cleanDatabaseAfterAll() {
+    public void cleanDatabaseAfterAll() {
         movementRepository.deleteAll();
         reviewRepository.deleteAll();
         orderRepository.deleteAll();
