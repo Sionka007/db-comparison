@@ -68,23 +68,20 @@ services:
       - "9100:9100"
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.45.0
     container_name: prometheus
     ports:
       - "9090:9090"
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
     depends_on:
-      mysqld-exporter:
-        condition: service_started
-      postgres-exporter:
-        condition: service_started
-      node-exporter:
-        condition: service_started
+      - mysqld-exporter
+      - postgres
 
   grafana:
     image: grafana/grafana:latest

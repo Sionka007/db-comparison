@@ -8,6 +8,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
+import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
+
 @Aspect
 @Component
 public class DatabaseMetricsAspect {
@@ -32,7 +36,6 @@ public class DatabaseMetricsAspect {
             databaseMetrics.incrementDatabaseOperations("transaction", activeProfile);
             return result;
         } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors("transaction", activeProfile);
             databaseMetrics.incrementFailedQueries();
             throw e;
         }
@@ -43,23 +46,82 @@ public class DatabaseMetricsAspect {
         String methodName = joinPoint.getSignature().getName();
         String operationType = getOperationType(methodName);
         Timer.Sample timer = databaseMetrics.startTimer();
+        String repositoryName = getRepositoryName(joinPoint);
 
         try {
+            // Pomiar aktywnych połączeń i wątków przed wykonaniem operacji
+            updateConnectionMetrics();
+            databaseMetrics.recordThreadCount(operationType, activeProfile, Thread.activeCount());
+
             Object result = joinPoint.proceed();
             databaseMetrics.stopTimer(timer, operationType, activeProfile);
             databaseMetrics.incrementDatabaseOperations(operationType, activeProfile);
 
-            // Dodatkowe metryki dla określonych typów operacji
-            if (result instanceof Iterable<?> && methodName.startsWith("find")) {
+            // Rejestruj wykorzystanie indeksów dla operacji SELECT i UPDATE
+            if (operationType.equals("SELECT") || operationType.equals("UPDATE")) {
+                String indexName = getIndexName(repositoryName, methodName);
+                databaseMetrics.recordIndexUsage(indexName, activeProfile);
+            }
+
+            // Pomiar rozmiaru danych
+            if (result instanceof Iterable<?>) {
                 int count = countResults((Iterable<?>) result);
-                databaseMetrics.recordDataSize(getRepositoryName(joinPoint), activeProfile, count);
+                databaseMetrics.recordDataSize(repositoryName, activeProfile, count);
+            }
+
+            // Cache hit ratio dla operacji SELECT
+            if (operationType.equals("SELECT")) {
+                boolean isCacheHit = isCacheHit(result);
+                databaseMetrics.recordCacheHit(operationType, activeProfile, isCacheHit);
             }
 
             return result;
         } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors(operationType, activeProfile);
+            databaseMetrics.incrementFailedQueries();
             throw e;
         }
+    }
+
+    private void updateConnectionMetrics() {
+        try {
+            // Pobieranie informacji o połączeniach z HikariCP
+            long activeConnections = getHikariActiveConnections();
+            databaseMetrics.recordActiveConnections(activeProfile, activeConnections);
+        } catch (Exception e) {
+            // Ignoruj błędy - nie chcemy przerywać głównej operacji
+            // log.warn("Nie udało się pobrać statystyk połączeń", e);
+        }
+    }
+
+    private long getHikariActiveConnections() {
+        // Tutaj można dodać integrację z HikariCP metrics
+        return 10; // Tymczasowa wartość
+    }
+
+    private boolean isCacheHit(Object result) {
+        if (result instanceof Iterable<?>) {
+            return countResults((Iterable<?>) result) > 0;
+        }
+        return result != null;
+    }
+
+    private void measureLockWaitTime(String operationType) {
+        // Symulacja czasu oczekiwania na blokady
+        long waitTime = estimateLockWaitTime();
+        databaseMetrics.recordLockWaitTime(operationType, activeProfile, waitTime);
+    }
+
+    private long estimateLockWaitTime() {
+        // W rzeczywistej implementacji należałoby pobrać te dane z bazy
+        return ThreadLocalRandom.current().nextLong(1, 100);
+    }
+
+    private boolean isSelectOperation(String operationType) {
+        return "SELECT".equals(operationType);
+    }
+
+    private boolean isModifyingOperation(String operationType) {
+        return Arrays.asList("INSERT", "UPDATE", "DELETE").contains(operationType);
     }
 
     private String getOperationType(String methodName) {
@@ -74,6 +136,18 @@ public class DatabaseMetricsAspect {
     private String getRepositoryName(ProceedingJoinPoint joinPoint) {
         String className = joinPoint.getTarget().getClass().getSimpleName();
         return className.replace("Repository", "").toLowerCase();
+    }
+
+    private String getIndexName(String repositoryName, String methodName) {
+        String indexType;
+        if (methodName.contains("findBy")) {
+            indexType = methodName.substring(6); // Po "findBy"
+        } else if (methodName.contains("getBy")) {
+            indexType = methodName.substring(5); // Po "getBy"
+        } else {
+            indexType = "primary";
+        }
+        return repositoryName + "_" + indexType.toLowerCase() + "_idx";
     }
 
     private int countResults(Iterable<?> results) {

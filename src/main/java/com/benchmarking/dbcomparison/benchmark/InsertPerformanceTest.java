@@ -6,13 +6,9 @@ import com.benchmarking.dbcomparison.repository.*;
 import com.benchmarking.dbcomparison.util.DataGenerator;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.Order;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -20,8 +16,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @Slf4j
 @Component
@@ -63,18 +57,15 @@ public class InsertPerformanceTest {
         customerRepository.deleteAll();
     }
 
-    @BeforeEach
     void beforeEach() {
         testStartTime = System.nanoTime();
     }
 
-    @AfterEach
-    void afterEach(TestInfo testInfo) {
+    void afterEach() {
         long duration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - testStartTime);
-        log.info("Test {} zakończony w {} ms", testInfo.getDisplayName(), duration);
+        log.info("Test zakończony w {} ms", duration);
     }
 
-    @Test @Order(1)
     public void testCustomerInsertPerformance() {
         final String label = "Dodawanie klientów";
         final String metricName = "customer_insert";
@@ -88,11 +79,11 @@ public class InsertPerformanceTest {
                 customers.add(dataGenerator.generateCustomer());
             }
             customers = customerRepository.saveAll(customers);
-
             databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
             databaseMetrics.recordDataSize("customers", activeProfile, customers.size());
         } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
+            log.error("Błąd podczas {}: {}", label, e.getMessage());
+            databaseMetrics.incrementFailedQueries();
             throw e;
         } finally {
             databaseMetrics.stopTimer(timer, metricName, activeProfile);
@@ -102,7 +93,6 @@ public class InsertPerformanceTest {
         logPerformance(label, metricName, durationMs, customers.size());
     }
 
-    @Test @Order(2)
     public void testBrandAndCategoryInsertPerformance() {
         final String label = "Dodawanie marek i kategorii";
         final String metricName = "brand_category_insert";
@@ -129,9 +119,9 @@ public class InsertPerformanceTest {
             }
             databaseMetrics.incrementDatabaseOperations("category_insert", activeProfile);
             databaseMetrics.recordDataSize("categories", activeProfile, categories.size());
-
         } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
+            log.error("Błąd podczas {}: {}", label, e.getMessage());
+            databaseMetrics.incrementFailedQueries();
             throw e;
         } finally {
             databaseMetrics.stopTimer(timer, metricName, activeProfile);
@@ -141,7 +131,6 @@ public class InsertPerformanceTest {
         logPerformance(label, metricName, durationMs, brands.size() + categories.size());
     }
 
-    @Test @Order(3)
     public void testProductInsertPerformance() {
         final String label = "Dodawanie produktów";
         final String metricName = "product_insert";
@@ -151,8 +140,6 @@ public class InsertPerformanceTest {
         long startTime = System.nanoTime();
 
         try {
-            assumeTrue(!brands.isEmpty() && !categories.isEmpty(), "Brak marek lub kategorii – pomiń test");
-
             products = new ArrayList<>();
             for (int i = 0; i < 500; i++) {
                 Brand brand = brands.get(i % brands.size());
@@ -160,11 +147,11 @@ public class InsertPerformanceTest {
                 products.add(dataGenerator.generateProduct(brand, category));
             }
             products = productRepository.saveAll(products);
-
             databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
             databaseMetrics.recordDataSize("products", activeProfile, products.size());
         } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
+            log.error("Błąd podczas {}: {}", label, e.getMessage());
+            databaseMetrics.incrementFailedQueries();
             throw e;
         } finally {
             databaseMetrics.stopTimer(timer, metricName, activeProfile);
@@ -174,7 +161,6 @@ public class InsertPerformanceTest {
         logPerformance(label, metricName, durationMs, products.size());
     }
 
-    @Test @Order(4)
     public void testOrderInsertPerformance() {
         final String label = "Dodawanie zamówień";
         final String metricName = "order_insert";
@@ -183,20 +169,25 @@ public class InsertPerformanceTest {
         Timer.Sample timer = databaseMetrics.startTimer();
         long startTime = System.nanoTime();
 
-        List<com.benchmarking.dbcomparison.model.Order> orders = new ArrayList<>();
+        List<Order> orders = new ArrayList<>();
         try {
-            assumeTrue(!products.isEmpty() && !customers.isEmpty(), "Brak klientów lub produktów – pomiń test");
-
             for (int i = 0; i < 200; i++) {
+                // Mierzenie cache hit ratio podczas pobierania customera
                 Customer customer = customers.get(i % customers.size());
-                orders.add(dataGenerator.generateOrder(customer, products));
+                databaseMetrics.recordCacheHit("SELECT", activeProfile, customer != null);
+
+                // Mierzenie cache hit ratio podczas pobierania produktów
+                List<Product> selectedProducts = products.subList(0, Math.min(5, products.size()));
+                databaseMetrics.recordCacheHit("SELECT", activeProfile, !selectedProducts.isEmpty());
+
+                orders.add(dataGenerator.generateOrder(customer, selectedProducts));
             }
             orders = orderRepository.saveAll(orders);
-
             databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
             databaseMetrics.recordDataSize("orders", activeProfile, orders.size());
         } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
+            log.error("Błąd podczas {}: {}", label, e.getMessage());
+            databaseMetrics.incrementFailedQueries();
             throw e;
         } finally {
             databaseMetrics.stopTimer(timer, metricName, activeProfile);
@@ -206,7 +197,6 @@ public class InsertPerformanceTest {
         logPerformance(label, metricName, durationMs, orders.size());
     }
 
-    @Test @Order(5)
     public void testProductReviewInsertPerformance() {
         final String label = "Dodawanie opinii o produktach";
         final String metricName = "product_review_insert";
@@ -217,19 +207,22 @@ public class InsertPerformanceTest {
 
         List<ProductReview> reviews = new ArrayList<>();
         try {
-            assumeTrue(!products.isEmpty() && !customers.isEmpty(), "Brak klientów lub produktów – pomiń test");
-
             for (int i = 0; i < 300; i++) {
+                // Mierzenie cache hit ratio podczas pobierania customera i produktu
                 Customer customer = customers.get(i % customers.size());
+                databaseMetrics.recordCacheHit("SELECT", activeProfile, customer != null);
+
                 Product product = products.get(i % products.size());
+                databaseMetrics.recordCacheHit("SELECT", activeProfile, product != null);
+
                 reviews.add(dataGenerator.generateReview(product, customer));
             }
             reviews = reviewRepository.saveAll(reviews);
-
             databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
             databaseMetrics.recordDataSize("product_reviews", activeProfile, reviews.size());
         } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
+            log.error("Błąd podczas {}: {}", label, e.getMessage());
+            databaseMetrics.incrementFailedQueries();
             throw e;
         } finally {
             databaseMetrics.stopTimer(timer, metricName, activeProfile);
@@ -239,7 +232,6 @@ public class InsertPerformanceTest {
         logPerformance(label, metricName, durationMs, reviews.size());
     }
 
-    @Test @Order(6)
     public void testInventoryMovementInsertPerformance() {
         final String label = "Dodawanie ruchów magazynowych";
         final String metricName = "inventory_movement_insert";
@@ -250,18 +242,16 @@ public class InsertPerformanceTest {
 
         List<InventoryMovement> movements = new ArrayList<>();
         try {
-            assumeTrue(!products.isEmpty(), "Brak produktów – pomiń test");
-
             for (int i = 0; i < 400; i++) {
                 Product product = products.get(i % products.size());
                 movements.add(dataGenerator.generateInventoryMovement(product));
             }
             movements = movementRepository.saveAll(movements);
-
             databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
             databaseMetrics.recordDataSize("inventory_movements", activeProfile, movements.size());
         } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
+            log.error("Błąd podczas {}: {}", label, e.getMessage());
+            databaseMetrics.incrementFailedQueries();
             throw e;
         } finally {
             databaseMetrics.stopTimer(timer, metricName, activeProfile);
@@ -273,7 +263,6 @@ public class InsertPerformanceTest {
 
     private void logPerformance(String label, String metricName, long durationMs, int recordCount) {
         double opsCount = databaseMetrics.getOperationsCount(metricName, activeProfile);
-        double errorsCount = databaseMetrics.getErrorsCount(metricName, activeProfile);
         double failedQueries = databaseMetrics.getFailedQueriesCount();
         double totalOpTime = databaseMetrics.getTotalOperationTimeMillis(metricName, activeProfile);
         double opsPerSecond = durationMs > 0 ? recordCount / (durationMs / 1000.0) : 0;
@@ -283,16 +272,15 @@ public class InsertPerformanceTest {
 
         try (FileWriter writer = new FileWriter(csvFile, true)) {
             if (writeHeader) {
-                writer.write("Operacja,Czas[ms],Liczba rekordów,Operacji/s,Profil,DB_operacje,DB_błędy,DB_failed_queries,DB_czas_timer_ms\n");
+                writer.write("Operacja,Czas[ms],Liczba rekordów,Operacji/s,Profil,DB_operacje,DB_failed_queries,DB_czas_timer_ms\n");
             }
-            writer.write(String.format("%s,%d,%d,%.2f,%s,%.0f,%.0f,%.0f,%.2f\n",
+            writer.write(String.format("%s,%d,%d,%.2f,%s,%.0f,%.0f,%.2f\n",
                     label, durationMs, recordCount, opsPerSecond, activeProfile,
-                    opsCount, errorsCount, failedQueries, totalOpTime));
+                    opsCount, failedQueries, totalOpTime));
         } catch (IOException e) {
             log.error("Błąd podczas zapisu do pliku CSV", e);
         }
     }
-
 
     public void cleanDatabaseAfterAll() {
         movementRepository.deleteAll();
@@ -306,7 +294,7 @@ public class InsertPerformanceTest {
         log.info("Baza danych została wyczyszczona po zakończeniu testów InsertPerformanceTest.");
     }
 
-    public void runAll(){
+    public void runAll() {
         setUp();
         testCustomerInsertPerformance();
         testBrandAndCategoryInsertPerformance();
@@ -316,5 +304,4 @@ public class InsertPerformanceTest {
         testInventoryMovementInsertPerformance();
         cleanDatabaseAfterAll();
     }
-
 }

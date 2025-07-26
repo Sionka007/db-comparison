@@ -11,12 +11,14 @@ public class DatabaseMetrics {
     private final Counter failedQueriesCounter;
     private final Timer transactionTimer;
 
+    private static final String APPLICATION_TAG = "db-comparison";
+
     public DatabaseMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        this.failedQueriesCounter = Counter.builder("db.queries.failed")
+        this.failedQueriesCounter = Counter.builder("db_queries_failed_total")
             .description("Number of failed database queries")
             .register(meterRegistry);
-        this.transactionTimer = Timer.builder("db.transaction.duration")
+        this.transactionTimer = Timer.builder("db_transaction_duration_seconds")
             .description("Database transaction duration")
             .publishPercentiles(0.5, 0.95, 0.99)
             .register(meterRegistry);
@@ -30,89 +32,83 @@ public class DatabaseMetrics {
         failedQueriesCounter.increment();
     }
 
-    // Metryki dla operacji bazodanowych
     public void incrementDatabaseOperations(String operation, String database) {
-        meterRegistry.counter("db.operations",
+        meterRegistry.counter("db_operations_total",
             "operation", operation,
-            "database", database
+            "database", database,
+            "application", APPLICATION_TAG
         ).increment();
     }
 
-    // Metryki rozmiaru danych
     public void recordDataSize(String tableName, String database, long size) {
-        meterRegistry.gauge("db.table.size",
-            Tags.of("table", tableName, "database", database),
+        meterRegistry.gauge("db_table_size",
+            Tags.of(
+                Tag.of("table", tableName),
+                Tag.of("database", database),
+                Tag.of("application", APPLICATION_TAG)
+            ),
             size);
     }
 
-    // Timer dla operacji
     public Timer.Sample startTimer() {
         return Timer.start(meterRegistry);
     }
 
     public void stopTimer(Timer.Sample sample, String operation, String database) {
-        sample.stop(meterRegistry.timer("db.operation.time",
+        sample.stop(meterRegistry.timer("db_operation_time_seconds",
             "operation", operation,
-            "database", database
+            "database", database,
+            "application", APPLICATION_TAG
         ));
     }
 
-    // Metryki błędów
-    public void incrementDatabaseErrors(String operation, String database) {
-        meterRegistry.counter("db.errors",
-            "operation", operation,
-            "database", database
-        ).increment();
-    }
-
-    // Metryki wykorzystania indeksów
-    public void recordIndexUsage(String indexName, String database, long usageCount) {
-        meterRegistry.gauge("db.index.usage",
-            Tags.of("index", indexName, "database", database),
-            usageCount);
-    }
-
-    // Metryki cache
-    public void recordCacheMetrics(String operation, String database, boolean cacheHit) {
-        meterRegistry.counter("db.cache.hits",
+    // Cache hit ratio
+    public void recordCacheHit(String operation, String database, boolean isHit) {
+        meterRegistry.counter("db_cache_hits_total",
             "operation", operation,
             "database", database,
-            "result", cacheHit ? "hit" : "miss"
+            "result", isHit ? "hit" : "miss",
+            "application", APPLICATION_TAG
         ).increment();
     }
 
-    // Metryki blokad
-    public void recordLockWaitTime(String lockType, String database, long waitTimeMillis) {
-        meterRegistry.timer("db.lock.wait",
-            "lock_type", lockType,
-            "database", database
-        ).record(waitTimeMillis, TimeUnit.MILLISECONDS);
-    }
-
-    // Metryki połączeń
+    // Aktywne połączenia
     public void recordActiveConnections(String database, long connectionCount) {
-        meterRegistry.gauge("db.connections.active",
-            Tags.of("database", database),
+        meterRegistry.gauge("db_connections_active",
+            Tags.of(
+                Tag.of("database", database),
+                Tag.of("application", APPLICATION_TAG)
+            ),
             connectionCount);
     }
 
-    // Metryki zapytań złożonych
-    public void recordJoinQueryMetrics(String database, int tableCount, long duration) {
-        meterRegistry.timer("db.join.duration",
-            "database", database,
-            "tables", String.valueOf(tableCount)
-        ).record(duration, TimeUnit.MILLISECONDS);
+    // Aktywne wątki
+    public void recordThreadCount(String operation, String database, int threadCount) {
+        meterRegistry.gauge("db_threads_active",
+            Tags.of(
+                Tag.of("operation", operation),
+                Tag.of("database", database),
+                Tag.of("application", APPLICATION_TAG)
+            ),
+            threadCount);
     }
 
-    // Metryki wielooperacyjności
-    public void recordThreadCount(String operation, String database, int threadCount) {
-        meterRegistry.gauge("db.threads.active",
-                Tags.of("operation", operation, "database", database),
-                threadCount);
+    // Czas oczekiwania na blokady
+    private Timer createLockWaitTimer(String lockType, String database) {
+        return Timer.builder("db_lock_wait_seconds")
+            .tags("lock_type", lockType,
+                  "database", database,
+                  "application", APPLICATION_TAG)
+            .register(meterRegistry);
+    }
+
+    public void recordLockWaitTime(String lockType, String database, long waitTimeMillis) {
+        Timer timer = createLockWaitTimer(lockType, database);
+        timer.record(waitTimeMillis, TimeUnit.MILLISECONDS);
     }
 
     public double getOperationsCount(String operation, String database) {
-        Counter counter = meterRegistry.find("db.operations")
+        Counter counter = meterRegistry.find("db_operations_total")
                 .tag("operation", operation)
                 .tag("database", database)
                 .counter();
@@ -128,16 +124,48 @@ public class DatabaseMetrics {
     }
 
     public double getFailedQueriesCount() {
-        Counter counter = meterRegistry.find("db.queries.failed").counter();
+        Counter counter = meterRegistry.find("db_queries_failed_total").counter();
         return counter != null ? counter.count() : 0;
     }
 
     public double getTotalOperationTimeMillis(String operation, String database) {
-        Timer timer = meterRegistry.find("db.operation.time")
+        Timer timer = meterRegistry.find("db_operation_time_seconds")
                 .tag("operation", operation)
                 .tag("database", database)
                 .timer();
         return timer != null ? timer.totalTime(TimeUnit.MILLISECONDS) : 0;
     }
 
+    public void recordIndexUsage(String indexName, String database) {
+        meterRegistry.counter("db_index_usage_total",
+            "index", indexName,
+            "database", database,
+            "application", APPLICATION_TAG
+        ).increment();
+    }
+
+    public void incrementDatabaseErrors(String operation, String database) {
+        meterRegistry.counter("db_errors_total",
+            "operation", operation,
+            "database", database,
+            "application", APPLICATION_TAG
+        ).increment();
+    }
+
+    public void recordJoinQueryMetrics(String database, int joinCount, long durationMs) {
+        meterRegistry.timer("db_join_query_seconds",
+            "database", database,
+            "join_count", String.valueOf(joinCount),
+            "application", APPLICATION_TAG
+        ).record(durationMs, TimeUnit.MILLISECONDS);
+    }
+
+    public void recordCacheMetrics(String operation, String database, boolean isHit) {
+        meterRegistry.counter("db_cache_hits_total",
+                "operation", operation,
+                "database", database,
+                "result", isHit ? "hit" : "miss",
+                "application", APPLICATION_TAG
+        ).increment();
+    }
 }
