@@ -120,19 +120,28 @@ public class DeletePerformanceTest {
         Timer.Sample timer = databaseMetrics.startTimer();
         long startTime = System.nanoTime();
 
-        int count = entities.size();
-
+        int processedCount = 0;
         try {
-            entities.forEach(deleteFunction);
+            // Usuń tylko pierwsze 1000 rekordów lub wszystkie, jeśli jest ich mniej
+            int recordsToDelete = Math.min(1000, entities.size());
+
+            for (int i = 0; i < recordsToDelete; i++) {
+                deleteFunction.accept(entities.get(i));
+                processedCount++;
+
+                if (i > 0 && i % 100 == 0) {
+                    log.info("{}: Usunięto {} z {} rekordów", label, i, recordsToDelete);
+                }
+            }
 
             databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
-            databaseMetrics.recordDataSize(metricName, activeProfile, count);
+            databaseMetrics.recordDataSize(metricName, activeProfile, processedCount);
 
             long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
             databaseMetrics.recordLockWaitTime(lockWaitLabel, activeProfile, durationMs);
             databaseMetrics.recordTransactionTime(durationMs);
 
-            logPerformance(label, metricName, durationMs, count);
+            logPerformance(label, metricName, durationMs, processedCount);
         } catch (Exception e) {
             databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
             throw e;

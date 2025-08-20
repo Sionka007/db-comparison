@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -55,22 +56,32 @@ public class UpdatePerformanceTest {
     void testUpdateProductPrices() {
         final String label = "Aktualizacja cen produktów";
         final String metricName = "update_products";
+        final String operation = "UPDATE";
 
         log.info("Start: {}", label);
         Timer.Sample timer = databaseMetrics.startTimer();
         long startTime = System.nanoTime();
 
-        int size = 0;
+        int totalSize = 0;
         try {
-            List<Product> products = productRepository.findAll();
-            for (Product product : products) {
+            List<Product> allProducts = productRepository.findAll();
+            int recordsToProcess = Math.min(1000, allProducts.size());
+            List<Product> productsToUpdate = new ArrayList<>();
+
+            // Przygotuj 1000 produktów do aktualizacji
+            for (int i = 0; i < recordsToProcess; i++) {
+                Product product = allProducts.get(i % allProducts.size());
                 product.setPrice(product.getPrice().multiply(java.math.BigDecimal.valueOf(1.1)));
+                productsToUpdate.add(product);
+                totalSize++;
             }
-            List<Product> updated = productRepository.saveAll(products);
-            size = updated.size();
+
+            // Aktualizuj wszystkie produkty jedną operacją
+            productRepository.saveAll(productsToUpdate);
 
             databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
-            databaseMetrics.recordDataSize(metricName, activeProfile, size);
+            databaseMetrics.incrementDatabaseOperations(operation, activeProfile);
+            databaseMetrics.recordDataSize(metricName, activeProfile, totalSize);
             long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
             databaseMetrics.recordLockWaitTime("products_table", activeProfile, durationMs);
             databaseMetrics.recordTransactionTime(durationMs);
@@ -78,33 +89,43 @@ public class UpdatePerformanceTest {
             databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
             throw e;
         } finally {
-            databaseMetrics.stopTimer(timer, metricName, activeProfile);
+            databaseMetrics.stopTimer(timer, operation, activeProfile);
         }
 
         long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-        logPerformance(label, metricName, durationMs, size);
+        logPerformance(label, metricName, durationMs, totalSize);
     }
 
 
     void testUpdateCustomerEmails() {
         final String label = "Aktualizacja emaili klientów";
         final String metricName = "update_customers";
+        final String operation = "UPDATE";
 
         log.info("Start: {}", label);
         Timer.Sample timer = databaseMetrics.startTimer();
         long startTime = System.nanoTime();
 
-        int size = 0;
+        int totalSize = 0;
         try {
-            List<Customer> customers = customerRepository.findAll();
-            for (Customer customer : customers) {
-                customer.setEmail("updated+" + customer.getId() + "@mail.com");
+            List<Customer> allCustomers = customerRepository.findAll();
+            int recordsToProcess = Math.min(1000, allCustomers.size());
+            List<Customer> customersToUpdate = new ArrayList<>();
+
+            // Przygotuj 1000 klientów do aktualizacji
+            for (int i = 0; i < recordsToProcess; i++) {
+                Customer customer = allCustomers.get(i % allCustomers.size());
+                customer.setEmail("updated+" + customer.getId() + "_" + i + "@mail.com");
+                customersToUpdate.add(customer);
+                totalSize++;
             }
-            List<Customer> updated = customerRepository.saveAll(customers);
-            size = updated.size();
+
+            // Aktualizuj wszystkich klientów jedną operacją
+            customerRepository.saveAll(customersToUpdate);
 
             databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
-            databaseMetrics.recordDataSize(metricName, activeProfile, size);
+            databaseMetrics.incrementDatabaseOperations(operation, activeProfile);
+            databaseMetrics.recordDataSize(metricName, activeProfile, totalSize);
             long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
             databaseMetrics.recordLockWaitTime("customers_table", activeProfile, durationMs);
             databaseMetrics.recordTransactionTime(durationMs);
@@ -112,33 +133,43 @@ public class UpdatePerformanceTest {
             databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
             throw e;
         } finally {
-            databaseMetrics.stopTimer(timer, metricName, activeProfile);
+            databaseMetrics.stopTimer(timer, operation, activeProfile);
         }
 
         long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-        logPerformance(label, metricName, durationMs, size);
+        logPerformance(label, metricName, durationMs, totalSize);
     }
 
 
     void testUpdateOrderStatus() {
         final String label = "Aktualizacja statusów zamówień";
         final String metricName = "update_orders";
+        final String operation = "UPDATE";
 
         log.info("Start: {}", label);
         Timer.Sample timer = databaseMetrics.startTimer();
         long startTime = System.nanoTime();
 
-        int size = 0;
+        int totalSize = 0;
         try {
-            List<Order> orders = orderRepository.findAll();
-            for (Order order : orders) {
-                order.setStatus("UPDATED");
+            List<Order> allOrders = orderRepository.findAll();
+            int recordsToProcess = Math.min(1000, allOrders.size());
+            List<Order> ordersToUpdate = new ArrayList<>();
+
+            // Przygotuj 1000 zamówień do aktualizacji
+            for (int i = 0; i < recordsToProcess; i++) {
+                Order order = allOrders.get(i % allOrders.size());
+                order.setStatus("UPDATED_" + i);
+                ordersToUpdate.add(order);
+                totalSize++;
             }
-            List<Order> updated = orderRepository.saveAll(orders);
-            size = updated.size();
+
+            // Aktualizuj wszystkie zamówienia jedną operacją
+            orderRepository.saveAll(ordersToUpdate);
 
             databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
-            databaseMetrics.recordDataSize(metricName, activeProfile, size);
+            databaseMetrics.incrementDatabaseOperations(operation, activeProfile);
+            databaseMetrics.recordDataSize(metricName, activeProfile, totalSize);
             long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
             databaseMetrics.recordLockWaitTime("orders_table", activeProfile, durationMs);
             databaseMetrics.recordTransactionTime(durationMs);
@@ -146,11 +177,11 @@ public class UpdatePerformanceTest {
             databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
             throw e;
         } finally {
-            databaseMetrics.stopTimer(timer, metricName, activeProfile);
+            databaseMetrics.stopTimer(timer, operation, activeProfile);
         }
 
         long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-        logPerformance(label, metricName, durationMs, size);
+        logPerformance(label, metricName, durationMs, totalSize);
     }
 
     private void logPerformance(String label, String metricName, long durationMs, int recordCount) {

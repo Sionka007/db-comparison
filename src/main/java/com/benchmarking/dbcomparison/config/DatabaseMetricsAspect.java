@@ -57,12 +57,6 @@ public class DatabaseMetricsAspect {
             databaseMetrics.stopTimer(timer, operationType, activeProfile);
             databaseMetrics.incrementDatabaseOperations(operationType, activeProfile);
 
-            // Rejestruj wykorzystanie indeksów dla operacji SELECT i UPDATE
-            if (operationType.equals("SELECT") || operationType.equals("UPDATE")) {
-                String indexName = getIndexName(repositoryName, methodName);
-                databaseMetrics.recordIndexUsage(indexName, activeProfile);
-            }
-
             // Pomiar rozmiaru danych
             if (result instanceof Iterable<?>) {
                 int count = countResults((Iterable<?>) result);
@@ -70,9 +64,13 @@ public class DatabaseMetricsAspect {
             }
 
             // Cache hit ratio dla operacji SELECT
-            if (operationType.equals("SELECT")) {
-                boolean isCacheHit = isCacheHit(result);
-                databaseMetrics.recordCacheHit(operationType, activeProfile, isCacheHit);
+            if (isSelectOperation(operationType)) {
+                measureCacheEffectiveness(methodName, result);
+            }
+
+            // Czas oczekiwania na blokady dla operacji modyfikujących
+            if (isModifyingOperation(operationType)) {
+                measureLockWaitTime(operationType);
             }
 
             return result;
@@ -96,6 +94,11 @@ public class DatabaseMetricsAspect {
     private long getHikariActiveConnections() {
         // Tutaj można dodać integrację z HikariCP metrics
         return 10; // Tymczasowa wartość
+    }
+
+    private void measureCacheEffectiveness(String methodName, Object result) {
+        boolean isCacheHit = isCacheHit(result);
+        databaseMetrics.recordCacheHit(methodName, activeProfile, isCacheHit);
     }
 
     private boolean isCacheHit(Object result) {
@@ -136,18 +139,6 @@ public class DatabaseMetricsAspect {
     private String getRepositoryName(ProceedingJoinPoint joinPoint) {
         String className = joinPoint.getTarget().getClass().getSimpleName();
         return className.replace("Repository", "").toLowerCase();
-    }
-
-    private String getIndexName(String repositoryName, String methodName) {
-        String indexType;
-        if (methodName.contains("findBy")) {
-            indexType = methodName.substring(6); // Po "findBy"
-        } else if (methodName.contains("getBy")) {
-            indexType = methodName.substring(5); // Po "getBy"
-        } else {
-            indexType = "primary";
-        }
-        return repositoryName + "_" + indexType.toLowerCase() + "_idx";
     }
 
     private int countResults(Iterable<?> results) {

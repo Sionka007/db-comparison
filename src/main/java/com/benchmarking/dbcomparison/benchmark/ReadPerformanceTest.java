@@ -2,6 +2,7 @@ package com.benchmarking.dbcomparison.benchmark;
 
 import com.benchmarking.dbcomparison.config.DatabaseMetrics;
 import com.benchmarking.dbcomparison.model.Customer;
+import com.benchmarking.dbcomparison.model.Order;
 import com.benchmarking.dbcomparison.model.Product;
 import com.benchmarking.dbcomparison.repository.BrandRepository;
 import com.benchmarking.dbcomparison.repository.CustomerRepository;
@@ -64,9 +65,16 @@ public class ReadPerformanceTest {
 
         int size = 0;
         try {
-            List<Customer> customers = customerRepository.findAll();
-            size = customers.size();
-            databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
+            List<Customer> allCustomers = customerRepository.findAll();
+            int recordsToProcess = Math.min(1000, allCustomers.size());
+
+            for (int i = 0; i < recordsToProcess; i++) {
+                Customer customer = allCustomers.get(i);
+                // Przetwarzanie pojedynczego rekordu
+                size++;
+                databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
+            }
+
             databaseMetrics.recordDataSize(metricName, activeProfile, size);
         } catch (Exception e) {
             databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
@@ -89,9 +97,16 @@ public class ReadPerformanceTest {
 
         int size = 0;
         try {
-            List<Product> products = productRepository.findAll();
-            size = products.size();
-            databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
+            List<Product> allProducts = productRepository.findAll();
+            int recordsToProcess = Math.min(1000, allProducts.size());
+
+            for (int i = 0; i < recordsToProcess; i++) {
+                Product product = allProducts.get(i);
+                // Przetwarzanie pojedynczego rekordu
+                size++;
+                databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
+            }
+
             databaseMetrics.recordDataSize(metricName, activeProfile, size);
         } catch (Exception e) {
             databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
@@ -114,9 +129,16 @@ public class ReadPerformanceTest {
 
         int size = 0;
         try {
-            List<com.benchmarking.dbcomparison.model.Order> orders = orderRepository.findAllWithCustomerAndItems();
-            size = orders.size();
-            databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
+            List<Order> allOrders = orderRepository.findAllWithCustomerAndItems();
+            int recordsToProcess = Math.min(1000, allOrders.size());
+
+            for (int i = 0; i < recordsToProcess; i++) {
+                Order order = allOrders.get(i);
+                // Przetwarzanie pojedynczego rekordu
+                size++;
+                databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
+            }
+
             databaseMetrics.recordDataSize(metricName, activeProfile, size);
             long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
             databaseMetrics.recordJoinQueryMetrics(activeProfile, 3, durationMs);
@@ -142,10 +164,17 @@ public class ReadPerformanceTest {
         int size = 0;
         try {
             List<Product> topProducts = productRepository.findTop100ByOrderByRatingDesc();
-            size = topProducts.size();
-            databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
+            int recordsToProcess = Math.min(1000, topProducts.size());
+
+            for (int i = 0; i < recordsToProcess; i++) {
+                Product product = topProducts.get(i);
+                // Przetwarzanie pojedynczego rekordu
+                size++;
+                databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
+                databaseMetrics.recordCacheMetrics(metricName, activeProfile, true);
+            }
+
             databaseMetrics.recordDataSize(metricName, activeProfile, size);
-            databaseMetrics.recordCacheMetrics(metricName, activeProfile, true);
         } catch (Exception e) {
             databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
             databaseMetrics.recordCacheMetrics(metricName, activeProfile, false);

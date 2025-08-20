@@ -40,6 +40,10 @@ public class InsertPerformanceTest {
     private List<Product> products;
     private long testStartTime;
 
+    private final static int MAX_PRODUCTS = 10000;
+    private final static int MAX_CATEGORIES = 200; // Zmiana: zwiększenie liczby kategorii do 2000
+    private final static int SUBCATEGORIES_PER_MAIN = 4; // Zmiana: zwiększenie liczby podkategorii do 40
+
     public void setUp() {
         dataGenerator = new DataGenerator();
         customers = new ArrayList<>();
@@ -75,7 +79,7 @@ public class InsertPerformanceTest {
         long startTime = System.nanoTime();
 
         try {
-            for (int i = 0; i < 1000; i++) {
+            for (int i = 0; i < MAX_PRODUCTS; i++) {
                 customers.add(dataGenerator.generateCustomer());
             }
             customers = customerRepository.saveAll(customers);
@@ -102,17 +106,18 @@ public class InsertPerformanceTest {
         long startTime = System.nanoTime();
 
         try {
-            for (int i = 0; i < 50; i++) {
+            for (int i = 0; i < MAX_PRODUCTS; i++) {
                 brands.add(dataGenerator.generateBrand());
             }
             brands = brandRepository.saveAll(brands);
             databaseMetrics.incrementDatabaseOperations("brand_insert", activeProfile);
             databaseMetrics.recordDataSize("brands", activeProfile, brands.size());
 
-            for (int i = 0; i < 5; i++) {
+            // Zmiana: generowanie 1000 kategorii zamiast 20
+            for (int i = 0; i < MAX_CATEGORIES; i++) { // 200 kategorii głównych
                 ProductCategory main = categoryRepository.save(dataGenerator.generateCategory(null));
                 categories.add(main);
-                for (int j = 0; j < 3; j++) {
+                for (int j = 0; j < SUBCATEGORIES_PER_MAIN; j++) { // 4 podkategorie dla każdej = 1000 łącznie
                     ProductCategory sub = categoryRepository.save(dataGenerator.generateCategory(main));
                     categories.add(sub);
                 }
@@ -141,7 +146,7 @@ public class InsertPerformanceTest {
 
         try {
             products = new ArrayList<>();
-            for (int i = 0; i < 500; i++) {
+            for (int i = 0; i < MAX_PRODUCTS; i++) {
                 Brand brand = brands.get(i % brands.size());
                 ProductCategory category = categories.get(i % categories.size());
                 products.add(dataGenerator.generateProduct(brand, category));
@@ -171,7 +176,7 @@ public class InsertPerformanceTest {
 
         List<Order> orders = new ArrayList<>();
         try {
-            for (int i = 0; i < 200; i++) {
+            for (int i = 0; i < MAX_PRODUCTS; i++) {
                 // Mierzenie cache hit ratio podczas pobierania customera
                 Customer customer = customers.get(i % customers.size());
                 databaseMetrics.recordCacheHit("SELECT", activeProfile, customer != null);
@@ -207,7 +212,7 @@ public class InsertPerformanceTest {
 
         List<ProductReview> reviews = new ArrayList<>();
         try {
-            for (int i = 0; i < 300; i++) {
+            for (int i = 0; i < MAX_PRODUCTS; i++) {
                 // Mierzenie cache hit ratio podczas pobierania customera i produktu
                 Customer customer = customers.get(i % customers.size());
                 databaseMetrics.recordCacheHit("SELECT", activeProfile, customer != null);
@@ -242,7 +247,7 @@ public class InsertPerformanceTest {
 
         List<InventoryMovement> movements = new ArrayList<>();
         try {
-            for (int i = 0; i < 400; i++) {
+            for (int i = 0; i < MAX_PRODUCTS; i++) {
                 Product product = products.get(i % products.size());
                 movements.add(dataGenerator.generateInventoryMovement(product));
             }
