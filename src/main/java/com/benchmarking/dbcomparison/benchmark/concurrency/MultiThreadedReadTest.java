@@ -1,5 +1,6 @@
 package com.benchmarking.dbcomparison.benchmark.concurrency;
 
+import com.benchmarking.dbcomparison.config.BenchmarkConfig;
 import com.benchmarking.dbcomparison.config.DatabaseMetrics;
 import com.benchmarking.dbcomparison.model.Customer;
 import com.benchmarking.dbcomparison.repository.CustomerRepository;
@@ -20,8 +21,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Component
 public class MultiThreadedReadTest {
 
-    private static final int TOTAL_RECORDS = 1000;
-    private static final int THREAD_COUNT = 10;
     private static final String METRIC_NAME = "customer_multithreaded_read";
     @Value("${spring.profiles.active:unknown}")
     private String activeProfile;
@@ -29,26 +28,30 @@ public class MultiThreadedReadTest {
     private CustomerRepository customerRepository;
     @Autowired
     private DatabaseMetrics databaseMetrics;
+    @Autowired
+    private BenchmarkConfig benchmarkConfig;
 
     void testMultiThreadedRead() throws InterruptedException {
-        log.info("Rozpoczynam test wielowątkowego ODCZYTU ({} wątków)", THREAD_COUNT);
+        int threadCount = benchmarkConfig.getThreads();
+        int totalRecords = benchmarkConfig.getRecordCount();
+        log.info("Rozpoczynam test wielowątkowego ODCZYTU ({} wątków)", threadCount);
 
         List<Customer> allCustomers = customerRepository.findAll();
-        if (allCustomers.size() < TOTAL_RECORDS) {
+        if (allCustomers.size() < totalRecords) {
             log.warn("Brak wystarczającej liczby rekordów do testu, znaleziono: {}", allCustomers.size());
             return;
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
-        CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch = new CountDownLatch(threadCount);
         AtomicInteger successCounter = new AtomicInteger();
         AtomicInteger errorCounter = new AtomicInteger();
         CopyOnWriteArrayList<Long> threadDurations = new CopyOnWriteArrayList<>();
 
         long startTime = System.nanoTime();
-        int recordsPerThread = TOTAL_RECORDS / THREAD_COUNT;
+        int recordsPerThread = totalRecords / threadCount;
 
-        for (int i = 0; i < THREAD_COUNT; i++) {
+        for (int i = 0; i < threadCount; i++) {
             int startIdx = i * recordsPerThread;
             int endIdx = startIdx + recordsPerThread;
             List<Customer> customersSlice = allCustomers.subList(startIdx, endIdx);

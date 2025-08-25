@@ -1,5 +1,6 @@
 package com.benchmarking.dbcomparison.benchmark.concurrency;
 
+import com.benchmarking.dbcomparison.config.BenchmarkConfig;
 import com.benchmarking.dbcomparison.config.DatabaseMetrics;
 import com.benchmarking.dbcomparison.model.Customer;
 import com.benchmarking.dbcomparison.model.Order;
@@ -28,8 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Component
 public class MultiThreadedDeleteTest {
 
-    private static final int TOTAL_RECORDS = 1000;
-    private static final int THREAD_COUNT = 10;
     private static final String METRIC_NAME = "customer_multithreaded_delete";
     @Value("${spring.profiles.active:unknown}")
     private String activeProfile;
@@ -43,6 +42,8 @@ public class MultiThreadedDeleteTest {
     private ProductReviewRepository productReviewRepository;
     @Autowired
     private DatabaseMetrics databaseMetrics;
+    @Autowired
+    private BenchmarkConfig benchmarkConfig;
 
     static void setupGenerator() {
         new DataGenerator(); // opcjonalnie, jeśli potrzebne
@@ -50,28 +51,30 @@ public class MultiThreadedDeleteTest {
 
     //runAllTests
     public void runAllTests() throws InterruptedException {
-        log.info("Rozpoczynam test wielowątkowego DELETE ({} wątków)", THREAD_COUNT);
+        int threadCount = benchmarkConfig.getThreads();
+        int totalRecords = benchmarkConfig.getRecordCount();
+        log.info("Rozpoczynam test wielowątkowego DELETE ({} wątków)", threadCount);
 
         // Najpierw usuwamy powiązane rekordy
-        deleteRelatedRecords();
+        deleteRelatedRecords(threadCount);
 
         List<Customer> allCustomers = customerRepository.findAll();
-        if (allCustomers.size() < TOTAL_RECORDS) {
+        if (allCustomers.size() < totalRecords) {
             log.warn("Brak wystarczającej liczby rekordów do testu DELETE, znaleziono: {}", allCustomers.size());
             return;
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
-        CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch = new CountDownLatch(threadCount);
         AtomicInteger successCounter = new AtomicInteger();
         AtomicInteger errorCounter = new AtomicInteger();
 
         List<Long> threadDurations = new CopyOnWriteArrayList<>();
 
         long startTime = System.nanoTime();
-        int recordsPerThread = TOTAL_RECORDS / THREAD_COUNT;
+        int recordsPerThread = totalRecords / threadCount;
 
-        for (int i = 0; i < THREAD_COUNT; i++) {
+        for (int i = 0; i < threadCount; i++) {
             int startIdx = i * recordsPerThread;
             int endIdx = startIdx + recordsPerThread;
             List<Customer> customersSlice = allCustomers.subList(startIdx, endIdx);
@@ -112,30 +115,30 @@ public class MultiThreadedDeleteTest {
         logPerformance(totalDuration, avgThreadTime, successCounter.get(), errorCounter.get(), threadDurations.size(), opsPerSecond);
     }
 
-    private void deleteRelatedRecords() throws InterruptedException {
+    private void deleteRelatedRecords(int threadCount) throws InterruptedException {
         // Usuwanie elementów zamówień
         List<OrderItem> orderItems = orderItemRepository.findAll();
-        deleteInBatches(orderItems, orderItemRepository, "orderitem_delete");
+        deleteInBatches(orderItems, orderItemRepository, "orderitem_delete", threadCount);
 
         // Usuwanie recenzji produktów
         List<ProductReview> reviews = productReviewRepository.findAll();
-        deleteInBatches(reviews, productReviewRepository, "productreview_delete");
+        deleteInBatches(reviews, productReviewRepository, "productreview_delete", threadCount);
 
         // Usuwanie zamówień
         List<Order> orders = orderRepository.findAll();
-        deleteInBatches(orders, orderRepository, "order_delete");
+        deleteInBatches(orders, orderRepository, "order_delete", threadCount);
     }
 
-    private <T> void deleteInBatches(List<T> entities, JpaRepository<T, ?> repository, String metricName) throws InterruptedException {
+    private <T> void deleteInBatches(List<T> entities, JpaRepository<T, ?> repository, String metricName, int threadCount) throws InterruptedException {
         if (entities.isEmpty()) {
             return;
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
-        CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
-        int batchSize = Math.max(1, entities.size() / THREAD_COUNT);
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch = new CountDownLatch(threadCount);
+        int batchSize = Math.max(1, entities.size() / threadCount);
 
-        for (int i = 0; i < THREAD_COUNT; i++) {
+        for (int i = 0; i < threadCount; i++) {
             int startIdx = i * batchSize;
             int endIdx = Math.min(startIdx + batchSize, entities.size());
             if (startIdx >= entities.size()) {

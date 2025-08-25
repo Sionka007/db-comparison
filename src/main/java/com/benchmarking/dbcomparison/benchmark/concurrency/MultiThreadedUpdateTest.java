@@ -1,5 +1,6 @@
 package com.benchmarking.dbcomparison.benchmark.concurrency;
 
+import com.benchmarking.dbcomparison.config.BenchmarkConfig;
 import com.benchmarking.dbcomparison.config.DatabaseMetrics;
 import com.benchmarking.dbcomparison.model.Customer;
 import com.benchmarking.dbcomparison.repository.CustomerRepository;
@@ -21,8 +22,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Component
 public class MultiThreadedUpdateTest {
 
-    private static final int TOTAL_RECORDS = 1000;
-    private static final int THREAD_COUNT = 10;
     private static final String METRIC_NAME = "customer_multithreaded_update";
     private final DataGenerator dataGenerator;
     @Value("${spring.profiles.active:unknown}")
@@ -31,6 +30,8 @@ public class MultiThreadedUpdateTest {
     private CustomerRepository customerRepository;
     @Autowired
     private DatabaseMetrics databaseMetrics;
+    @Autowired
+    private BenchmarkConfig benchmarkConfig;
 
     public MultiThreadedUpdateTest() {
         this.dataGenerator = new DataGenerator();
@@ -38,25 +39,27 @@ public class MultiThreadedUpdateTest {
 
 
     void testMultiThreadedUpdate() throws InterruptedException {
-        log.info("Rozpoczynam test wielowątkowej AKTUALIZACJI ({} wątków)", THREAD_COUNT);
+        int threadCount = benchmarkConfig.getThreads();
+        int totalRecords = benchmarkConfig.getRecordCount();
+        log.info("Rozpoczynam test wielowątkowej AKTUALIZACJI ({} wątków)", threadCount);
 
         List<Customer> allCustomers = customerRepository.findAll();
-        if (allCustomers.size() < TOTAL_RECORDS) {
+        if (allCustomers.size() < totalRecords) {
             log.warn("Brak wystarczającej liczby rekordów do testu, znaleziono: {}", allCustomers.size());
             return;
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
-        CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch = new CountDownLatch(threadCount);
         AtomicInteger successCounter = new AtomicInteger();
         AtomicInteger errorCounter = new AtomicInteger();
 
         List<Long> threadDurations = new CopyOnWriteArrayList<>();
 
         long startTime = System.nanoTime();
-        int recordsPerThread = TOTAL_RECORDS / THREAD_COUNT;
+        int recordsPerThread = totalRecords / threadCount;
 
-        for (int i = 0; i < THREAD_COUNT; i++) {
+        for (int i = 0; i < threadCount; i++) {
             int startIdx = i * recordsPerThread;
             int endIdx = startIdx + recordsPerThread;
             List<Customer> customersSlice = allCustomers.subList(startIdx, endIdx);
