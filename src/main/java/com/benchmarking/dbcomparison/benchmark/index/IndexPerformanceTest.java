@@ -1,5 +1,6 @@
 package com.benchmarking.dbcomparison.benchmark.index;
 
+import com.benchmarking.dbcomparison.config.BenchmarkConfig;
 import com.benchmarking.dbcomparison.config.DatabaseMetrics;
 import com.benchmarking.dbcomparison.model.Brand;
 import com.benchmarking.dbcomparison.model.Product;
@@ -39,6 +40,8 @@ public class IndexPerformanceTest {
     private ProductCategoryRepository categoryRepository;
     @Autowired
     private DatabaseMetrics databaseMetrics;
+    @Autowired
+    private BenchmarkConfig benchmarkConfig;
     @Value("${spring.profiles.active:unknown}")
     private String activeProfile;
 
@@ -54,7 +57,7 @@ public class IndexPerformanceTest {
         Set<String> usedSkus = new HashSet<>();
 
         List<Product> products = new ArrayList<>(dataGenerator.generateMixedProducts(brand, category,
-                "Pro", "unique", 10000, 0.3));
+                "Pro", "unique", benchmarkConfig.getRecordCount(), 0.3));
 
         productRepository.saveAll(products);
 

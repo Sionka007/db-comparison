@@ -1,5 +1,6 @@
 package com.benchmarking.dbcomparison.benchmark.concurrency;
 
+import com.benchmarking.dbcomparison.config.BenchmarkConfig;
 import com.benchmarking.dbcomparison.config.DatabaseMetrics;
 import com.benchmarking.dbcomparison.model.Customer;
 import com.benchmarking.dbcomparison.repository.CustomerRepository;
@@ -25,8 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Component
 public class MultiThreadedInsertTest {
 
-    private static final int TOTAL_RECORDS = 1000;
-    private static final int THREAD_COUNT = 10;
     private static final String METRIC_NAME = "customer_multithreaded_insert";
     private final DataGenerator dataGenerator;
     @Value("${spring.profiles.active:unknown}")
@@ -35,6 +34,8 @@ public class MultiThreadedInsertTest {
     private CustomerRepository customerRepository;
     @Autowired
     private DatabaseMetrics databaseMetrics;
+    @Autowired
+    private BenchmarkConfig benchmarkConfig;
 
     public MultiThreadedInsertTest() {
         this.dataGenerator = new DataGenerator();
@@ -42,25 +43,30 @@ public class MultiThreadedInsertTest {
 
 
     void testMultiThreadedInsert() throws InterruptedException {
-        log.info("Rozpoczynam test wielowątkowego INSERT ({} wątków)", THREAD_COUNT);
+        int configuredThreads = Math.max(1, benchmarkConfig.getThreads());
+        int totalRecords = benchmarkConfig.getRecordCount();
+        int threadCount = Math.min(configuredThreads, totalRecords);
+        log.info("Rozpoczynam test wielowątkowego INSERT ({} wątków)", threadCount);
 
-        ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
-        CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch = new CountDownLatch(threadCount);
         AtomicInteger successCounter = new AtomicInteger();
         AtomicInteger errorCounter = new AtomicInteger();
 
         List<Long> threadDurations = new ArrayList<>();
 
         long startTime = System.nanoTime();
-        int recordsPerThread = TOTAL_RECORDS / THREAD_COUNT;
+        int base = totalRecords / threadCount;
+        int remainder = totalRecords % threadCount;
 
-        for (int i = 0; i < THREAD_COUNT; i++) {
+        for (int i = 0; i < threadCount; i++) {
+            int recordsForThread = base + (i < remainder ? 1 : 0);
             executor.submit(() -> {
                 Timer.Sample timer = databaseMetrics.startTimer();
                 long threadStart = System.nanoTime();
                 try {
                     List<Customer> customers = new ArrayList<>();
-                    for (int j = 0; j < recordsPerThread; j++) {
+                    for (int j = 0; j < recordsForThread; j++) {
                         customers.add(dataGenerator.generateCustomer());
                     }
                     customerRepository.saveAll(customers);

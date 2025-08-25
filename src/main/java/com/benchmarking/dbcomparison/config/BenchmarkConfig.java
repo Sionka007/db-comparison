@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "benchmark")
 public class BenchmarkConfig {
     private int recordCount = 1000; // domyślna wartość
+    private int threads = 10;       // domyślna liczba wątków
 
     public int getRecordCount() {
         return recordCount;
@@ -14,5 +15,13 @@ public class BenchmarkConfig {
 
     public void setRecordCount(int recordCount) {
         this.recordCount = recordCount;
+    }
+
+    public int getThreads() {
+        return threads;
+    }
+
+    public void setThreads(int threads) {
+        this.threads = threads;
     }
 }
