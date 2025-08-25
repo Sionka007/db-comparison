@@ -43,8 +43,9 @@ public class MultiThreadedInsertTest {
 
 
     void testMultiThreadedInsert() throws InterruptedException {
-        int threadCount = benchmarkConfig.getThreads();
+        int configuredThreads = Math.max(1, benchmarkConfig.getThreads());
         int totalRecords = benchmarkConfig.getRecordCount();
+        int threadCount = Math.min(configuredThreads, totalRecords);
         log.info("Rozpoczynam test wielowątkowego INSERT ({} wątków)", threadCount);
 
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
@@ -55,15 +56,17 @@ public class MultiThreadedInsertTest {
         List<Long> threadDurations = new ArrayList<>();
 
         long startTime = System.nanoTime();
-        int recordsPerThread = totalRecords / threadCount;
+        int base = totalRecords / threadCount;
+        int remainder = totalRecords % threadCount;
 
         for (int i = 0; i < threadCount; i++) {
+            int recordsForThread = base + (i < remainder ? 1 : 0);
             executor.submit(() -> {
                 Timer.Sample timer = databaseMetrics.startTimer();
                 long threadStart = System.nanoTime();
                 try {
                     List<Customer> customers = new ArrayList<>();
-                    for (int j = 0; j < recordsPerThread; j++) {
+                    for (int j = 0; j < recordsForThread; j++) {
                         customers.add(dataGenerator.generateCustomer());
                     }
                     customerRepository.saveAll(customers);

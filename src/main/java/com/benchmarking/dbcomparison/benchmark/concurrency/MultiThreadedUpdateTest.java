@@ -39,15 +39,17 @@ public class MultiThreadedUpdateTest {
 
 
     void testMultiThreadedUpdate() throws InterruptedException {
-        int threadCount = benchmarkConfig.getThreads();
+        int configuredThreads = Math.max(1, benchmarkConfig.getThreads());
         int totalRecords = benchmarkConfig.getRecordCount();
-        log.info("Rozpoczynam test wielowątkowej AKTUALIZACJI ({} wątków)", threadCount);
 
         List<Customer> allCustomers = customerRepository.findAll();
         if (allCustomers.size() < totalRecords) {
             log.warn("Brak wystarczającej liczby rekordów do testu, znaleziono: {}", allCustomers.size());
             return;
         }
+
+        int threadCount = Math.min(configuredThreads, totalRecords);
+        log.info("Rozpoczynam test wielowątkowej AKTUALIZACJI ({} wątków)", threadCount);
 
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch latch = new CountDownLatch(threadCount);
@@ -57,11 +59,12 @@ public class MultiThreadedUpdateTest {
         List<Long> threadDurations = new CopyOnWriteArrayList<>();
 
         long startTime = System.nanoTime();
-        int recordsPerThread = totalRecords / threadCount;
+        int base = totalRecords / threadCount;
+        int remainder = totalRecords % threadCount;
 
         for (int i = 0; i < threadCount; i++) {
-            int startIdx = i * recordsPerThread;
-            int endIdx = startIdx + recordsPerThread;
+            int startIdx = i * base + Math.min(i, remainder);
+            int endIdx = startIdx + base + (i < remainder ? 1 : 0);
             List<Customer> customersSlice = allCustomers.subList(startIdx, endIdx);
 
             executor.submit(() -> {

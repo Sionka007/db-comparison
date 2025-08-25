@@ -51,18 +51,20 @@ public class MultiThreadedDeleteTest {
 
     //runAllTests
     public void runAllTests() throws InterruptedException {
-        int threadCount = benchmarkConfig.getThreads();
+        int configuredThreads = Math.max(1, benchmarkConfig.getThreads());
         int totalRecords = benchmarkConfig.getRecordCount();
-        log.info("Rozpoczynam test wielowątkowego DELETE ({} wątków)", threadCount);
 
         // Najpierw usuwamy powiązane rekordy
-        deleteRelatedRecords(threadCount);
+        deleteRelatedRecords(Math.min(configuredThreads, totalRecords));
 
         List<Customer> allCustomers = customerRepository.findAll();
         if (allCustomers.size() < totalRecords) {
             log.warn("Brak wystarczającej liczby rekordów do testu DELETE, znaleziono: {}", allCustomers.size());
             return;
         }
+
+        int threadCount = Math.min(configuredThreads, totalRecords);
+        log.info("Rozpoczynam test wielowątkowego DELETE ({} wątków)", threadCount);
 
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch latch = new CountDownLatch(threadCount);
@@ -72,11 +74,12 @@ public class MultiThreadedDeleteTest {
         List<Long> threadDurations = new CopyOnWriteArrayList<>();
 
         long startTime = System.nanoTime();
-        int recordsPerThread = totalRecords / threadCount;
+        int base = totalRecords / threadCount;
+        int remainder = totalRecords % threadCount;
 
         for (int i = 0; i < threadCount; i++) {
-            int startIdx = i * recordsPerThread;
-            int endIdx = startIdx + recordsPerThread;
+            int startIdx = i * base + Math.min(i, remainder);
+            int endIdx = startIdx + base + (i < remainder ? 1 : 0);
             List<Customer> customersSlice = allCustomers.subList(startIdx, endIdx);
 
             executor.submit(() -> {
@@ -134,17 +137,15 @@ public class MultiThreadedDeleteTest {
             return;
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        CountDownLatch latch = new CountDownLatch(threadCount);
-        int batchSize = Math.max(1, entities.size() / threadCount);
+        int actualThreads = Math.min(threadCount, entities.size());
+        ExecutorService executor = Executors.newFixedThreadPool(actualThreads);
+        CountDownLatch latch = new CountDownLatch(actualThreads);
+        int base = entities.size() / actualThreads;
+        int remainder = entities.size() % actualThreads;
 
-        for (int i = 0; i < threadCount; i++) {
-            int startIdx = i * batchSize;
-            int endIdx = Math.min(startIdx + batchSize, entities.size());
-            if (startIdx >= entities.size()) {
-                latch.countDown();
-                continue;
-            }
+        for (int i = 0; i < actualThreads; i++) {
+            int startIdx = i * base + Math.min(i, remainder);
+            int endIdx = startIdx + base + (i < remainder ? 1 : 0);
 
             List<T> batch = entities.subList(startIdx, endIdx);
             executor.submit(() -> {
