@@ -1,5 +1,6 @@
 package com.benchmarking.dbcomparison.benchmark;
 
+import com.benchmarking.dbcomparison.config.BenchmarkConfig;
 import com.benchmarking.dbcomparison.config.DatabaseMetrics;
 import com.benchmarking.dbcomparison.model.Customer;
 import com.benchmarking.dbcomparison.model.Order;
@@ -7,6 +8,7 @@ import com.benchmarking.dbcomparison.model.Product;
 import com.benchmarking.dbcomparison.repository.CustomerRepository;
 import com.benchmarking.dbcomparison.repository.OrderRepository;
 import com.benchmarking.dbcomparison.repository.ProductRepository;
+import com.benchmarking.dbcomparison.util.CsvFormatter;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +37,9 @@ public class UpdatePerformanceTest {
 
     @Autowired
     private OrderRepository orderRepository;
+
+    @Autowired
+    private BenchmarkConfig benchmarkConfig;
 
     @Value("${spring.profiles.active:unknown}")
     private String activeProfile;
@@ -65,10 +70,10 @@ public class UpdatePerformanceTest {
         int totalSize = 0;
         try {
             List<Product> allProducts = productRepository.findAll();
-            int recordsToProcess = Math.min(1000, allProducts.size());
+            int recordsToProcess = Math.min(benchmarkConfig.getRecordCount(), allProducts.size());
             List<Product> productsToUpdate = new ArrayList<>();
 
-            // Przygotuj 1000 produktów do aktualizacji
+            // Przygotuj produkty do aktualizacji
             for (int i = 0; i < recordsToProcess; i++) {
                 Product product = allProducts.get(i % allProducts.size());
                 product.setPrice(product.getPrice().multiply(java.math.BigDecimal.valueOf(1.1)));
@@ -109,10 +114,10 @@ public class UpdatePerformanceTest {
         int totalSize = 0;
         try {
             List<Customer> allCustomers = customerRepository.findAll();
-            int recordsToProcess = Math.min(1000, allCustomers.size());
+            int recordsToProcess = Math.min(benchmarkConfig.getRecordCount(), allCustomers.size());
             List<Customer> customersToUpdate = new ArrayList<>();
 
-            // Przygotuj 1000 klientów do aktualizacji
+            // Przygotuj klientów do aktualizacji
             for (int i = 0; i < recordsToProcess; i++) {
                 Customer customer = allCustomers.get(i % allCustomers.size());
                 customer.setEmail("updated+" + customer.getId() + "_" + i + "@mail.com");
@@ -153,10 +158,10 @@ public class UpdatePerformanceTest {
         int totalSize = 0;
         try {
             List<Order> allOrders = orderRepository.findAll();
-            int recordsToProcess = Math.min(1000, allOrders.size());
+            int recordsToProcess = Math.min(benchmarkConfig.getRecordCount(), allOrders.size());
             List<Order> ordersToUpdate = new ArrayList<>();
 
-            // Przygotuj 1000 zamówień do aktualizacji
+            // Przygotuj zamówienia do aktualizacji
             for (int i = 0; i < recordsToProcess; i++) {
                 Order order = allOrders.get(i % allOrders.size());
                 order.setStatus("UPDATED_" + i);
@@ -191,18 +196,31 @@ public class UpdatePerformanceTest {
         double totalOpTime = databaseMetrics.getTotalOperationTimeMillis(metricName, activeProfile);
         double opsPerSecond = durationMs > 0 ? recordCount / (durationMs / 1000.0) : 0;
 
+        saveToCsv(label, durationMs, recordCount, activeProfile);
+    }
+
+    private void saveToCsv(String label, long durationMs, int recordCount, String profile) {
         File csvFile = new File("performance-update-results.csv");
         boolean writeHeader = !csvFile.exists() || csvFile.length() == 0;
 
         try (FileWriter writer = new FileWriter(csvFile, true)) {
             if (writeHeader) {
-                writer.write("Operacja,Czas[ms],Liczba rekordów,Operacji/s,Profil,DB_operacje,DB_błędy,DB_failed_queries,DB_czas_timer_ms\n");
+                writer.write("Operacja;Czas[ms];Liczba rekordów;Operacji/s;Profil;DB_operacje;DB_błędy;DB_failed_queries;DB_czas_timer_ms\n");
             }
-            writer.write(String.format("%s,%d,%d,%.2f,%s,%.0f,%.0f,%.0f,%.2f\n",
-                    label, durationMs, recordCount, opsPerSecond, activeProfile,
-                    opsCount, errorsCount, failedQueries, totalOpTime));
+            double operationsPerSecond = (recordCount * 1000.0) / durationMs;
+            writer.write(CsvFormatter.formatCsvLine(
+                label,
+                durationMs,
+                recordCount,
+                operationsPerSecond,
+                profile,
+                databaseMetrics.getOperationsCount(label, profile),
+                databaseMetrics.getErrorsCount(label, profile),
+                databaseMetrics.getFailedQueriesCount(),
+                databaseMetrics.getTotalOperationTimeMillis(label, profile)
+            ));
         } catch (IOException e) {
-            log.error("Bd podczas zapisu do pliku CSV", e);
+            log.error("Błąd podczas zapisywania wyników do CSV", e);
         }
     }
 

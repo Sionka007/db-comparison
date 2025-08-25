@@ -47,7 +47,11 @@
           "expr": "sum by (operation) (db_operations_total{application=\"db-comparison\"})",
           "legendFormat": "{{operation}}"
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "title": "Błędy operacji",
@@ -63,7 +67,11 @@
           "expr": "db_queries_failed_total{application=\"db-comparison\"}",
           "legendFormat": "Failed queries"
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "title": "Wydajność i czas",
@@ -90,7 +98,11 @@
           "expr": "rate(db_operation_time_seconds_sum{application=\"db-comparison\"}[5m])/rate(db_operation_time_seconds_count{application=\"db-comparison\"}[5m])",
           "legendFormat": "{{operation}} - {{database}}"
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "title": "Rozmiar tabel",
@@ -98,22 +110,26 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 28
+        "x": 12,
+        "y": 10
       },
       "targets": [
         {
           "expr": "db_table_size{application=\"db-comparison\"}",
           "legendFormat": "{{table}} - {{database}}"
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "title": "Cache Hit Ratio",
       "type": "gauge",
       "gridPos": {
         "h": 8,
-        "w": 8,
+        "w": 6,
         "x": 0,
         "y": 19
       },
@@ -127,10 +143,29 @@
         "min": 0,
         "max": 100,
         "thresholds": [
-          { "value": 0, "color": "red" },
-          { "value": 50, "color": "yellow" },
-          { "value": 80, "color": "green" }
+          {
+            "value": 0,
+            "color": "red"
+          },
+          {
+            "value": 50,
+            "color": "yellow"
+          },
+          {
+            "value": 80,
+            "color": "green"
+          }
         ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -138,8 +173,8 @@
       "type": "stat",
       "gridPos": {
         "h": 8,
-        "w": 4,
-        "x": 8,
+        "w": 6,
+        "x": 6,
         "y": 19
       },
       "options": {
@@ -148,7 +183,9 @@
         "justifyMode": "auto",
         "orientation": "horizontal",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -166,14 +203,27 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "value": null, "color": "red" },
-              { "value": 50, "color": "yellow" },
-              { "value": 80, "color": "green" }
+              {
+                "value": null,
+                "color": "red"
+              },
+              {
+                "value": 50,
+                "color": "yellow"
+              },
+              {
+                "value": 80,
+                "color": "green"
+              }
             ]
           },
           "unit": "percent",
           "decimals": 2
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -181,8 +231,8 @@
       "type": "stat",
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
+        "w": 6,
+        "x": 12,
         "y": 19
       },
       "targets": [
@@ -190,15 +240,19 @@
           "expr": "db_connections_active{application=\"db-comparison\"}",
           "legendFormat": "{{database}}"
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "title": "Aktywne wątki",
       "type": "gauge",
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 16,
+        "w": 6,
+        "x": 18,
         "y": 19
       },
       "targets": [
@@ -206,7 +260,22 @@
           "expr": "db_threads_active{application=\"db-comparison\"}",
           "legendFormat": "{{operation}} - {{database}}"
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Blokady i indeksy",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      }
     },
     {
       "title": "Czas oczekiwania na blokady",
@@ -222,7 +291,11 @@
           "expr": "rate(db_lock_wait_seconds_sum{application=\"db-comparison\"}[5m])",
           "legendFormat": "{{lock_type}} - {{database}}"
         }
-      ]
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "title": "Wykorzystanie indeksów",
@@ -237,6 +310,10 @@
         {
           "expr": "sum by (index, database) (rate(db_index_usage_total{application=\"db-comparison\"}[5m]))",
           "legendFormat": "{{index}} - {{database}}"
+        },
+        {
+          "expr": "sum by (database) (rate(db_operations_total{application=\"db-comparison\", operation=~\".*index.*\"}[5m]))",
+          "legendFormat": "operacje index-related ({{database}})"
         }
       ],
       "options": {
@@ -281,6 +358,22 @@
             }
           }
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Jeśli nie masz metryki db_index_usage_total, użyj fallbacku: operacje z tagiem operation~\".*index.*\"."
+    },
+    {
+      "title": "Zapytania JOIN",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
       }
     },
     {
@@ -288,7 +381,7 @@
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 37
       },
@@ -319,6 +412,520 @@
           },
           "unit": "s"
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Zasoby systemowe",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      }
+    },
+    {
+      "title": "Zużycie CPU (%)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\", instance=~\"$instance\"}[5m])) * 100",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "custom": {
+            "axisLabel": "CPU [%]"
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "CPU – wartość bieżąca",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 46
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\", instance=~\"$instance\"}[5m])) * 100",
+          "legendFormat": "CPU"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Analizy bez CSV",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 55
+      }
+    },
+    {
+      "title": "Przepustowość (ops/s) wg operacji i bazy",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "targets": [
+        {
+          "expr": "sum by (operation, database) (rate(db_operations_total{application=\"db-comparison\", operation=~\"$operation\", database=~\"$database\"}[5m]))",
+          "legendFormat": "{{operation}} - {{database}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "decimals": 2
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Opóźnienie p95 (s) wg operacji i bazy",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, operation, database) (rate(db_operation_time_seconds_bucket{application=\"db-comparison\", operation=~\"$operation\", database=~\"$database\"}[5m])))",
+          "legendFormat": "{{operation}} - {{database}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Wymaga włączonych histogramów Micrometer (percentile-histogram=true).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Rozkład opóźnień (heatmap)",
+      "type": "heatmap",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 64
+      },
+      "targets": [
+        {
+          "expr": "sum by (le) (rate(db_operation_time_seconds_bucket{application=\"db-comparison\", operation=~\"$operation\", database=~\"$database\"}[5m]))",
+          "legendFormat": "{{le}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      },
+      "options": {
+        "xAxis": {
+          "show": true
+        },
+        "yAxis": {
+          "show": true
+        },
+        "color": {
+          "mode": "spectrum"
+        },
+        "heatmap": {},
+        "legend": {
+          "show": true
+        },
+        "tooltip": {
+          "show": true
+        }
+      },
+      "description": "Rozkład na podstawie bucketów histogramu.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "JVM Heap Used (bytes)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 74
+      },
+      "targets": [
+        {
+          "expr": "sum by (area) (jvm_memory_used_bytes{area=\"heap\"})",
+          "legendFormat": "{{area}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "JVM GC Pause (s) – tempo",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 74
+      },
+      "targets": [
+        {
+          "expr": "rate(jvm_gc_pause_seconds_sum[5m])",
+          "legendFormat": "GC pause sum rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Top operacje wg średniego opóźnienia (ostatnie 5m)",
+      "type": "table",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 82
+      },
+      "targets": [
+        {
+          "expr": "topk(10, (rate(db_operation_time_seconds_sum{application=\"db-comparison\", operation=~\"$operation\", database=~\"$database\"}[5m]) / rate(db_operation_time_seconds_count{application=\"db-comparison\", operation=~\"$operation\", database=~\"$database\"}[5m])))",
+          "legendFormat": "{{operation}} - {{database}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3
+        }
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Pamięć RAM użycie (%)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 93
+      },
+      "targets": [
+        {
+          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+          "legendFormat": "RAM used"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Dysk – zajętość (%)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 93
+      },
+      "targets": [
+        {
+          "expr": "(node_filesystem_size_bytes{fstype!~\"rootfs|overlay\",mountpoint!~\"/var/lib/docker.*|/run.*|/sys.*|/proc.*\"} - node_filesystem_free_bytes{fstype!~\"rootfs|overlay\",mountpoint!~\"/var/lib/docker.*|/run.*|/sys.*|/proc.*\"}) / node_filesystem_size_bytes{fstype!~\"rootfs|overlay\",mountpoint!~\"/var/lib/docker.*|/run.*|/sys.*|/proc.*\"} * 100",
+          "legendFormat": "{{mountpoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Sieć – przepływność (B/s)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 102
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_network_receive_bytes_total{device!~\"lo\"}[1m]))",
+          "legendFormat": "{{instance}} RX"
+        },
+        {
+          "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{device!~\"lo\"}[1m]))",
+          "legendFormat": "{{instance}} TX"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "binBps"
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Średni czas operacji (s) wg bazy",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 111
+      },
+      "targets": [
+        {
+          "expr": "rate(db_operation_time_seconds_sum{application=\"db-comparison\", database=~\"$database\"}[5m]) / rate(db_operation_time_seconds_count{application=\"db-comparison\", database=~\"$database\"}[5m])",
+          "legendFormat": "{{database}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Fallback: średni czas wszystkich operacji; użyj tego panelu, jeśli nie zbierasz osobnej metryki transakcji."
+    },
+    {
+      "title": "Opóźnienie p95 (s) wg bazy",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 111
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, database) (rate(db_operation_time_seconds_bucket{application=\"db-comparison\", database=~\"$database\"}[5m])))",
+          "legendFormat": "{{database}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Fallback: p95 dla wszystkich operacji; włącz histogramy dla db.operation.time, aby działało.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Czas oczekiwania na blokady p95 (s)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 120
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, database) (rate(db_lock_wait_seconds_bucket{application=\"db-comparison\", database=~\"$database\"}[5m])))",
+          "legendFormat": "{{database}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Wymaga metryki db.lock.wait_* (bucket/sum/count). Jeśli nie masz, ukryj panel lub dodaj instrumentację Micrometer.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     }
   ],
@@ -358,6 +965,68 @@
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(node_cpu_seconds_total, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": {
+          "query": "label_values(node_cpu_seconds_total, instance)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(db_operations_total, operation)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Operation",
+        "multi": true,
+        "name": "operation",
+        "options": [],
+        "query": {
+          "query": "label_values(db_operations_total, operation)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
       }
     ]
   },
@@ -369,6 +1038,6 @@
   "timezone": "",
   "title": "DB Performance Dashboard",
   "uid": "db-performance",
-  "version": 1,
+  "version": 5,
   "weekStart": ""
 }

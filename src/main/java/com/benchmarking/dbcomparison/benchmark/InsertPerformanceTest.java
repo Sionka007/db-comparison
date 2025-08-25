@@ -1,8 +1,10 @@
 package com.benchmarking.dbcomparison.benchmark;
 
+import com.benchmarking.dbcomparison.config.BenchmarkConfig;
 import com.benchmarking.dbcomparison.config.DatabaseMetrics;
 import com.benchmarking.dbcomparison.model.*;
 import com.benchmarking.dbcomparison.repository.*;
+import com.benchmarking.dbcomparison.util.CsvFormatter;
 import com.benchmarking.dbcomparison.util.DataGenerator;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,8 @@ public class InsertPerformanceTest {
     @Autowired private OrderRepository orderRepository;
     @Autowired private ProductReviewRepository reviewRepository;
     @Autowired private InventoryMovementRepository movementRepository;
+    @Autowired
+    private BenchmarkConfig benchmarkConfig;
 
     private DataGenerator dataGenerator;
     private List<Customer> customers;
@@ -40,9 +44,13 @@ public class InsertPerformanceTest {
     private List<Product> products;
     private long testStartTime;
 
-    private final static int MAX_PRODUCTS = 10000;
-    private final static int MAX_CATEGORIES = 200; // Zmiana: zwiększenie liczby kategorii do 2000
-    private final static int SUBCATEGORIES_PER_MAIN = 4; // Zmiana: zwiększenie liczby podkategorii do 40
+    // Zmiana ze stałych na właściwości konfigurowane
+    private int getMaxRecords() {
+        return benchmarkConfig.getRecordCount();
+    }
+
+    private final static int MAX_CATEGORIES = 200;
+    private final static int SUBCATEGORIES_PER_MAIN = 4;
 
     public void setUp() {
         dataGenerator = new DataGenerator();
@@ -79,7 +87,7 @@ public class InsertPerformanceTest {
         long startTime = System.nanoTime();
 
         try {
-            for (int i = 0; i < MAX_PRODUCTS; i++) {
+            for (int i = 0; i < getMaxRecords(); i++) {
                 customers.add(dataGenerator.generateCustomer());
             }
             customers = customerRepository.saveAll(customers);
@@ -106,7 +114,7 @@ public class InsertPerformanceTest {
         long startTime = System.nanoTime();
 
         try {
-            for (int i = 0; i < MAX_PRODUCTS; i++) {
+            for (int i = 0; i < getMaxRecords(); i++) {
                 brands.add(dataGenerator.generateBrand());
             }
             brands = brandRepository.saveAll(brands);
@@ -146,7 +154,7 @@ public class InsertPerformanceTest {
 
         try {
             products = new ArrayList<>();
-            for (int i = 0; i < MAX_PRODUCTS; i++) {
+            for (int i = 0; i < getMaxRecords(); i++) {
                 Brand brand = brands.get(i % brands.size());
                 ProductCategory category = categories.get(i % categories.size());
                 products.add(dataGenerator.generateProduct(brand, category));
@@ -176,7 +184,7 @@ public class InsertPerformanceTest {
 
         List<Order> orders = new ArrayList<>();
         try {
-            for (int i = 0; i < MAX_PRODUCTS; i++) {
+            for (int i = 0; i < getMaxRecords(); i++) {
                 // Mierzenie cache hit ratio podczas pobierania customera
                 Customer customer = customers.get(i % customers.size());
                 databaseMetrics.recordCacheHit("SELECT", activeProfile, customer != null);
@@ -212,7 +220,7 @@ public class InsertPerformanceTest {
 
         List<ProductReview> reviews = new ArrayList<>();
         try {
-            for (int i = 0; i < MAX_PRODUCTS; i++) {
+            for (int i = 0; i < getMaxRecords(); i++) {
                 // Mierzenie cache hit ratio podczas pobierania customera i produktu
                 Customer customer = customers.get(i % customers.size());
                 databaseMetrics.recordCacheHit("SELECT", activeProfile, customer != null);
@@ -247,7 +255,7 @@ public class InsertPerformanceTest {
 
         List<InventoryMovement> movements = new ArrayList<>();
         try {
-            for (int i = 0; i < MAX_PRODUCTS; i++) {
+            for (int i = 0; i < getMaxRecords(); i++) {
                 Product product = products.get(i % products.size());
                 movements.add(dataGenerator.generateInventoryMovement(product));
             }
@@ -272,18 +280,30 @@ public class InsertPerformanceTest {
         double totalOpTime = databaseMetrics.getTotalOperationTimeMillis(metricName, activeProfile);
         double opsPerSecond = durationMs > 0 ? recordCount / (durationMs / 1000.0) : 0;
 
+        saveToCsv(label, durationMs, recordCount, activeProfile);
+    }
+
+    private void saveToCsv(String label, long durationMs, int recordCount, String profile) {
         File csvFile = new File("performance-insert-results.csv");
         boolean writeHeader = !csvFile.exists() || csvFile.length() == 0;
 
         try (FileWriter writer = new FileWriter(csvFile, true)) {
             if (writeHeader) {
-                writer.write("Operacja,Czas[ms],Liczba rekordów,Operacji/s,Profil,DB_operacje,DB_failed_queries,DB_czas_timer_ms\n");
+                writer.write("Operacja;Czas[ms];Liczba rekordów;Operacji/s;Profil;DB_operacje;DB_failed_queries;DB_czas_timer_ms\n");
             }
-            writer.write(String.format("%s,%d,%d,%.2f,%s,%.0f,%.0f,%.2f\n",
-                    label, durationMs, recordCount, opsPerSecond, activeProfile,
-                    opsCount, failedQueries, totalOpTime));
+            double operationsPerSecond = (recordCount * 1000.0) / durationMs;
+            writer.write(CsvFormatter.formatCsvLine(
+                label,
+                durationMs,
+                recordCount,
+                operationsPerSecond,
+                profile,
+                databaseMetrics.getOperationsCount(label, profile),
+                databaseMetrics.getFailedQueriesCount(),
+                databaseMetrics.getTotalOperationTimeMillis(label, profile)
+            ));
         } catch (IOException e) {
-            log.error("Błąd podczas zapisu do pliku CSV", e);
+            log.error("Błąd podczas zapisywania wyników do CSV", e);
         }
     }
 

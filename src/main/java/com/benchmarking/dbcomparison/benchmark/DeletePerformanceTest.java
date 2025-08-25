@@ -1,7 +1,9 @@
 package com.benchmarking.dbcomparison.benchmark;
 
+import com.benchmarking.dbcomparison.config.BenchmarkConfig;
 import com.benchmarking.dbcomparison.config.DatabaseMetrics;
 import com.benchmarking.dbcomparison.repository.*;
+import com.benchmarking.dbcomparison.util.CsvFormatter;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +41,9 @@ public class DeletePerformanceTest {
 
     @Value("${spring.profiles.active:unknown}")
     private String activeProfile;
+
+    @Autowired
+    private BenchmarkConfig benchmarkConfig;
 
     private long testStartTime;
 
@@ -120,17 +125,18 @@ public class DeletePerformanceTest {
         Timer.Sample timer = databaseMetrics.startTimer();
         long startTime = System.nanoTime();
 
+        int totalCount = entities.size();
         int processedCount = 0;
-        try {
-            // Usuń tylko pierwsze 1000 rekordów lub wszystkie, jeśli jest ich mniej
-            int recordsToDelete = Math.min(1000, entities.size());
+        int recordsToProcess = Math.min(benchmarkConfig.getRecordCount(), totalCount);
 
-            for (int i = 0; i < recordsToDelete; i++) {
+        try {
+            // Przetwarzaj po 1000 rekordów
+            for (int i = 0; i < recordsToProcess; i++) {
                 deleteFunction.accept(entities.get(i));
                 processedCount++;
 
-                if (i > 0 && i % 100 == 0) {
-                    log.info("{}: Usunięto {} z {} rekordów", label, i, recordsToDelete);
+                if (i > 0 && i % (recordsToProcess / 10) == 0) {
+                    log.info("{}: Usunięto {} z {} rekordów", label, i, recordsToProcess);
                 }
             }
 
@@ -157,18 +163,31 @@ public class DeletePerformanceTest {
         double totalOpTime = databaseMetrics.getTotalOperationTimeMillis(metricName, activeProfile);
         double opsPerSecond = durationMs > 0 ? recordCount / (durationMs / 1000.0) : 0;
 
+        saveToCsv(label, durationMs, recordCount, activeProfile);
+    }
+
+    private void saveToCsv(String label, long durationMs, int recordCount, String profile) {
         File csvFile = new File("performance-delete-results.csv");
         boolean writeHeader = !csvFile.exists() || csvFile.length() == 0;
 
         try (FileWriter writer = new FileWriter(csvFile, true)) {
             if (writeHeader) {
-                writer.write("Operacja,Czas[ms],Liczba rekordów,Operacji/s,Profil,DB_operacje,DB_błędy,DB_failed_queries,DB_czas_timer_ms\n");
+                writer.write("Operacja;Czas[ms];Liczba rekordów;Operacji/s;Profil;DB_operacje;DB_błędy;DB_failed_queries;DB_czas_timer_ms\n");
             }
-            writer.write(String.format("%s,%d,%d,%.2f,%s,%.0f,%.0f,%.0f,%.2f\n",
-                    label, durationMs, recordCount, opsPerSecond, activeProfile,
-                    opsCount, errorsCount, failedQueries, totalOpTime));
+            double operationsPerSecond = (recordCount * 1000.0) / durationMs;
+            writer.write(CsvFormatter.formatCsvLine(
+                label,
+                durationMs,
+                recordCount,
+                operationsPerSecond,
+                profile,
+                databaseMetrics.getOperationsCount(label, profile),
+                databaseMetrics.getErrorsCount(label, profile),
+                databaseMetrics.getFailedQueriesCount(),
+                databaseMetrics.getTotalOperationTimeMillis(label, profile)
+            ));
         } catch (IOException e) {
-            log.error("Błąd podczas zapisu do pliku CSV", e);
+            log.error("Błąd podczas zapisywania wyników do CSV", e);
         }
     }
 
