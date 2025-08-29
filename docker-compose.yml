@@ -11,10 +11,11 @@ services:
       - "3306:3306"
     volumes:
       - ./docker/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./docker/mysql/mysqld.cnf:/etc/mysql/conf.d/mysqld.cnf:ro
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
 
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,8 +33,10 @@ services:
       - "5432:5432"
     volumes:
       - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -2,8 +2,13 @@ package com.benchmarking.dbcomparison.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -26,10 +31,12 @@ public class Product {
 
     @ManyToOne
     @JoinColumn(name = "category_id")
+    @OnDelete(action = OnDeleteAction.CASCADE) // DB-level, gdy Hibernate tworzy FK
     private ProductCategory category;
 
     @ManyToOne
     @JoinColumn(name = "brand_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Brand brand;
 
     @Column(precision = 10, scale = 2)
@@ -43,6 +50,7 @@ public class Product {
 
     @Column(length = 50)
     private String barcode;
+
     private Boolean isAvailable = true;
     private Integer minStockLevel;
     private Integer maxStockLevel;
@@ -50,4 +58,16 @@ public class Product {
     private Integer reviewCount = 0;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // Recenzje produktu
+    @OneToMany(mappedBy = "product", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<ProductReview> reviews = new ArrayList<>();
+
+    // Ruchy magazynowe produktu
+    @OneToMany(mappedBy = "product", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<InventoryMovement> movements = new ArrayList<>();
+
+    // Pozycje zamówień z tym produktem
+    @OneToMany(mappedBy = "product", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<OrderItem> orderItems = new ArrayList<>();
 }

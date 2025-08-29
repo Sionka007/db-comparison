@@ -537,7 +537,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (operation, database) (rate(db_operations_total{application=\"db-comparison\", operation=~\"$operation\", database=~\"$database\"}[5m]))",
+          "refId": "A",
+          "expr": "sum by (operation, database) (rate(db_operations_total{application=\"db-comparison\", operation=~\"(?i).*update.*|$operation\", database=~\"$database\"}[15m]))",
           "legendFormat": "{{operation}} - {{database}}"
         }
       ],
@@ -569,7 +570,8 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, operation, database) (rate(db_operation_time_seconds_bucket{application=\"db-comparison\", operation=~\"$operation\", database=~\"$database\"}[5m])))",
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, operation, database) (rate(db_operation_time_seconds_bucket{application=\"db-comparison\", operation=~\"(?i).*update.*|$operation\", database=~\"$database\"}[15m])))",
           "legendFormat": "{{operation}} - {{database}}"
         }
       ],
@@ -709,7 +711,8 @@
       },
       "targets": [
         {
-          "expr": "topk(10, (rate(db_operation_time_seconds_sum{application=\"db-comparison\", operation=~\"$operation\", database=~\"$database\"}[5m]) / rate(db_operation_time_seconds_count{application=\"db-comparison\", operation=~\"$operation\", database=~\"$database\"}[5m])))",
+          "refId": "A",
+          "expr": "topk(10, (rate(db_operation_time_seconds_sum{application=\"db-comparison\", operation=~\"(?i).*update.*|$operation\", database=~\"$database\"}[15m]) / rate(db_operation_time_seconds_count{application=\"db-comparison\", operation=~\"(?i).*update.*|$operation\", database=~\"$database\"}[15m])))",
           "legendFormat": "{{operation}} - {{database}}"
         }
       ],

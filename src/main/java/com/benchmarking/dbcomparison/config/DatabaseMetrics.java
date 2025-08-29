@@ -1,6 +1,7 @@
 package com.benchmarking.dbcomparison.config;
 
 import io.micrometer.core.instrument.*;
+import io.micrometer.core.instrument.distribution.ValueAtPercentile;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.TimeUnit;
@@ -54,12 +55,37 @@ public class DatabaseMetrics {
         return Timer.start(meterRegistry);
     }
 
+    private Timer getOrCreateOperationTimer(String operation, String database) {
+        // Ten timer będzie używany przez stopTimer() i do odczytu p95
+        return Timer.builder("db_operation_time_seconds")
+                .description("DB operation duration")
+                .publishPercentiles(0.5, 0.95, 0.99)          // percentyle
+                .publishPercentileHistogram(true)              // histogram (lepsza precyzja)
+                .tags("operation", operation,
+                        "database", database,
+                        "application", APPLICATION_TAG)
+                .register(meterRegistry);
+    }
+
     public void stopTimer(Timer.Sample sample, String operation, String database) {
-        sample.stop(meterRegistry.timer("db_operation_time_seconds",
-            "operation", operation,
-            "database", database,
-            "application", APPLICATION_TAG
-        ));
+        Timer t = getOrCreateOperationTimer(operation, database);
+        sample.stop(t);
+    }
+
+    public double getP95Millis(String operation, String database) {
+        Timer t = meterRegistry.find("db_operation_time_seconds")
+                .tag("operation", operation)
+                .tag("database", database)
+                .timer();
+        if (t == null) return Double.NaN;
+
+        var snap = t.takeSnapshot();
+        for (ValueAtPercentile v : snap.percentileValues()) {
+            if (Math.abs(v.percentile() - 0.95) < 1e-9) {
+                return v.value(TimeUnit.MILLISECONDS);
+            }
+        }
+        return Double.NaN;
     }
 
     // Cache hit ratio
@@ -116,7 +142,7 @@ public class DatabaseMetrics {
     }
 
     public double getErrorsCount(String operation, String database) {
-        Counter counter = meterRegistry.find("db.errors")
+        Counter counter = meterRegistry.find("db_errors_total")
                 .tag("operation", operation)
                 .tag("database", database)
                 .counter();

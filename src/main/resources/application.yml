@@ -3,33 +3,30 @@ spring:
     name: db-comparison
 
   jpa:
-    open-in-view: false   # dobra praktyka, brak otwartych sesji w widoku
+    open-in-view: false
     hibernate:
       ddl-auto: update
     show-sql: false
     properties:
       hibernate:
-        format_sql: false
-        generate_statistics: true
-        jdbc.batch_size: 500
-        order_inserts: true
+        # 🔥 batching
+        jdbc.batch_size: 300
+        order_inserts: false
         order_updates: true
         jdbc.batch_versioned_data: true
+        # szybkie fetchy przy odczycie
+        default_batch_fetch_size: 500
+        jdbc.fetch_size: 500
+        # wyłącz statystyki hibernate, bo spowalniają przy dużych insertach
+        generate_statistics: true
+        connection.provider_disables_autocommit: false
 
 server:
-  shutdown: graceful       # czytelne domknięcie przy restarcie
+  shutdown: graceful
 
 management:
   endpoint:
     prometheus:
-      enabled: true
-    health:
-      probes:
-        enabled: true      # /actuator/health/liveness, /readiness
-  health:
-    livenessstate:
-      enabled: true
-    readinessstate:
       enabled: true
   endpoints:
     web:
@@ -38,47 +35,19 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
-    export:
-      prometheus:
-        enabled: true
-        step: 10s          # częstsze scrapowanie do wykresów „na żywo”
-    distribution:
-      percentiles-histogram:
-        "[http.server.requests]": true
-        "[db.operation.time]": true
-        "[db.transaction.duration]": true
-        "[db.join.duration]": true
-        "[db.lock.wait]": true
-      percentiles:
-        "[http.server.requests]": 0.5, 0.95, 0.99
-        "[db.operation.time]": 0.5, 0.95, 0.99
-        "[db.transaction.duration]": 0.5, 0.95, 0.99
-        "[db.join.duration]": 0.5, 0.95, 0.99
-        "[db.lock.wait]": 0.5, 0.95, 0.99
-      sla:
-        "[http.server.requests]": 10ms, 50ms, 100ms, 500ms, 1s
-        "[db.operation.time]": 1ms, 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 5s
-        "[db.transaction.duration]": 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 5s
-        "[db.join.duration]": 1ms, 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 5s
-        "[db.lock.wait]": 1ms, 5ms, 10ms, 50ms, 100ms, 500ms, 1s
-      # ── doprecyzowanie zakresów, żeby p95/heatmapy były czytelne:
-      minimum-expected-value:
-        "[db.operation.time]": 1ms
-        "[db.transaction.duration]": 1ms
-        "[db.join.duration]": 1ms
-        "[db.lock.wait]": 1ms
-      maximum-expected-value:
-        "[db.operation.time]": 30s
-        "[db.transaction.duration]": 60s
-        "[db.join.duration]": 60s
-        "[db.lock.wait]": 30s
 
 benchmark:
   recordCount: 1000
-  threads: 16
-  batchSize: 500
-  warmupPercent: 5
+  threads: 8
+  batchSize: 1000
+  warmupPercent: 1
   isolation: "READ_COMMITTED"
+
+logging:
+  level:
+    org.hibernate.SQL: OFF
+    org.hibernate.type.descriptor.sql: OFF
+    org.hibernate.engine.jdbc.batch.internal.BatchingBatch: DEBUG
 
 ---
 spring:
@@ -86,19 +55,34 @@ spring:
     activate:
       on-profile: mysql
   datasource:
-    url: jdbc:mysql://localhost:3306/db_comparison?useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true&cachePrepStmts=true&useServerPrepStmts=true&useUnicode=true&characterEncoding=UTF-8
+    url: >
+      jdbc:mysql://localhost:3306/db_comparison
+      ?useSSL=false&allowPublicKeyRetrieval=true
+      &rewriteBatchedStatements=true
+      &cachePrepStmts=true
+      &useServerPrepStmts=false
+      &prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048
+      &useLocalTransactionState=true
+      &useLocalSessionState=true
+      &cacheServerConfiguration=true
+      &elideSetAutoCommits=false
+      &useUnicode=true&characterEncoding=UTF-8
+      &connectionCollation=utf8mb4_unicode_ci&characterSetResults=utf8mb4
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 32
+      maximum-pool-size: 16
       minimum-idle: 8
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-      keepaliveTime: 300000   # 5 min keepalive na dłuższe testy
+      keepaliveTime: 300000
+      auto-commit: false
   jpa:
-    database-platform: org.hibernate.dialect.MySQLDialect
+    properties:
+      hibernate.dialect.storage_engine: innodb
+    database-platform: org.hibernate.dialect.MySQL8Dialect
 
 ---
 spring:
@@ -106,16 +90,22 @@ spring:
     activate:
       on-profile: postgres
   datasource:
-    url: jdbc:postgresql://localhost:5432/db_comparison?reWriteBatchedInserts=true
+    url: jdbc:postgresql://localhost:5432/db_comparison?reWriteBatchedInserts=true&sslmode=disable&tcpKeepAlive=true&socketTimeout=0&options=-c%20statement_timeout=0
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 32
+      maximum-pool-size: 16
       minimum-idle: 8
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-      keepaliveTime: 300000   # 5 min
+      keepaliveTime: 300000
+      auto-commit: false
+      data-source-properties:
+        socketTimeout: 60
+        tcpKeepAlive: true
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate.jdbc.lob.non_contextual_creation: true

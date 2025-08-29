@@ -2,6 +2,9 @@ package com.benchmarking.dbcomparison.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,10 +22,11 @@ public class Order {
 
     @ManyToOne
     @JoinColumn(name = "customer_id")
+    @OnDelete(action = OnDeleteAction.CASCADE) // DB-level
     private Customer customer;
 
     @Column(unique = true)
-    private String orderNumber;
+    private UUID orderNumber;
 
     private String status;
     private BigDecimal totalAmount;

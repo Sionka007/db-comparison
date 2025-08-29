@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS product (
 CREATE TABLE IF NOT EXISTS orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     customer_id UUID,
-    order_number VARCHAR(50) UNIQUE,
+    order_number UUID UNIQUE,
     status VARCHAR(20) DEFAULT 'NEW',
     total_amount NUMERIC(10,2),
     shipping_address_street VARCHAR(255),
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS order_item (
 
 -- Tabela recenzji produktów
 CREATE TABLE IF NOT EXISTS product_review (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY,
     product_id UUID,
     customer_id UUID,
     rating INT CHECK (rating BETWEEN 1 AND 5),

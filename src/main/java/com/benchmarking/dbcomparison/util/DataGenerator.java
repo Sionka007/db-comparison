@@ -4,6 +4,7 @@ import com.benchmarking.dbcomparison.model.*;
 import com.github.javafaker.Faker;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -89,7 +90,7 @@ public class DataGenerator {
     public Order generateOrder(Customer customer, List<Product> availableProducts) {
         Order order = new Order();
         order.setCustomer(customer);
-        order.setOrderNumber(UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        order.setOrderNumber(UUID.randomUUID());
         order.setStatus("NEW");
         order.setShippingAddressStreet(customer.getAddressStreet());
         order.setShippingAddressCity(customer.getAddressCity());
@@ -158,10 +159,12 @@ public class DataGenerator {
         item.setUnitPrice(product.getPrice());
 
         BigDecimal baseAmount = item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
-        item.setDiscountAmount(baseAmount.multiply(BigDecimal.valueOf(0.1))); // 10% zniżki
+        BigDecimal discountRate = new BigDecimal("0.10");
+        item.setDiscountAmount(baseAmount.multiply(discountRate).setScale(2, RoundingMode.HALF_UP));
         item.setTaxRate(new BigDecimal("0.23")); // 23% VAT
-        item.setTaxAmount(baseAmount.subtract(item.getDiscountAmount()).multiply(new BigDecimal("0.23")));
-        item.setTotalAmount(baseAmount.subtract(item.getDiscountAmount()).add(item.getTaxAmount()));
+        BigDecimal taxable = baseAmount.subtract(item.getDiscountAmount());
+        item.setTaxAmount(taxable.multiply(new BigDecimal("0.23")).setScale(2, RoundingMode.HALF_UP));
+        item.setTotalAmount(taxable.add(item.getTaxAmount()).setScale(2, RoundingMode.HALF_UP));
 
         item.setCreatedAt(order.getCreatedAt());
         item.setUpdatedAt(order.getUpdatedAt());

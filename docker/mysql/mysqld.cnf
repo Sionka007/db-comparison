@@ -1,0 +1,22 @@
+[mysqld]
+# PAMIĘĆ
+innodb_buffer_pool_size = 8G          # 50–70% RAM serwera DB (przy 16GB daj 8G)
+
+# WAL/redo log
+innodb_log_file_size = 2G
+innodb_log_files_in_group = 2
+
+# TRWAŁOŚĆ (SZYBCIEJ, mniej bezpiecznie przy padzie)
+innodb_flush_log_at_trx_commit = 2    # 1 = pełna trwałość, 2 = szybciej
+sync_binlog = 0                       # jeśli binlog ON; albo binlog całkiem OFF w testach
+
+# I/O
+innodb_flush_method = O_DIRECT
+innodb_io_capacity = 2000
+innodb_io_capacity_max = 4000
+
+# Batch-friendly
+binlog = OFF                          # jeżeli to środowisko testowe (bez replikacji)
+
+# Parser / pakiety
+max_allowed_packet = 256M

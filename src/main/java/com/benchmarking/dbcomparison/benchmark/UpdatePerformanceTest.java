@@ -2,239 +2,144 @@ package com.benchmarking.dbcomparison.benchmark;
 
 import com.benchmarking.dbcomparison.config.BenchmarkConfig;
 import com.benchmarking.dbcomparison.config.DatabaseMetrics;
-import com.benchmarking.dbcomparison.model.Customer;
-import com.benchmarking.dbcomparison.model.Order;
-import com.benchmarking.dbcomparison.model.Product;
 import com.benchmarking.dbcomparison.repository.CustomerRepository;
 import com.benchmarking.dbcomparison.repository.OrderRepository;
 import com.benchmarking.dbcomparison.repository.ProductRepository;
-import com.benchmarking.dbcomparison.util.CsvFormatter;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
 public class UpdatePerformanceTest {
 
-    @Autowired
-    private DatabaseMetrics databaseMetrics;
-
-    @Autowired
-    private ProductRepository productRepository;
-
-    @Autowired
-    private CustomerRepository customerRepository;
-
-    @Autowired
-    private OrderRepository orderRepository;
-
-    @Autowired
-    private BenchmarkConfig benchmarkConfig;
+    private final DatabaseMetrics databaseMetrics;
+    private final ProductRepository productRepository;
+    private final CustomerRepository customerRepository;
+    private final OrderRepository orderRepository;
+    private final BenchmarkConfig benchmarkConfig;
+    private final UpdatePerformanceTest self;
 
     @Value("${spring.profiles.active:unknown}")
     private String activeProfile;
 
-    private long testStartTime;
-
-    void beforeEach() {
-        log.info("----> START {}", "UpdatePerformanceTest");
-        testStartTime = System.nanoTime();
+    public UpdatePerformanceTest(DatabaseMetrics databaseMetrics,
+                                 ProductRepository productRepository,
+                                 CustomerRepository customerRepository,
+                                 OrderRepository orderRepository,
+                                 BenchmarkConfig benchmarkConfig,
+                                 @Lazy UpdatePerformanceTest self) {
+        this.databaseMetrics = databaseMetrics;
+        this.productRepository = productRepository;
+        this.customerRepository = customerRepository;
+        this.orderRepository = orderRepository;
+        this.benchmarkConfig = benchmarkConfig;
+        this.self = self;
     }
 
+    private boolean isMySql() { return activeProfile != null && activeProfile.toLowerCase().contains("mysql"); }
+    private int limit() { return Math.max(1, benchmarkConfig.getRecordCount()); }
 
-    void afterEach() {
-        long duration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - testStartTime);
-        log.info("<---- KONIEC {} ({} ms)", "UpdatePerformanceTest", duration);
-    }
-
-
-    void testUpdateProductPrices() {
-        final String label = "Aktualizacja cen produktów";
-        final String metricName = "update_products";
-        final String operation = "UPDATE";
-
-        log.info("Start: {}", label);
-        Timer.Sample timer = databaseMetrics.startTimer();
-        long startTime = System.nanoTime();
-
-        int totalSize = 0;
-        try {
-            List<Product> allProducts = productRepository.findAll();
-            int recordsToProcess = Math.min(benchmarkConfig.getRecordCount(), allProducts.size());
-            List<Product> productsToUpdate = new ArrayList<>();
-
-            // Przygotuj produkty do aktualizacji
-            for (int i = 0; i < recordsToProcess; i++) {
-                Product product = allProducts.get(i % allProducts.size());
-                product.setPrice(product.getPrice().multiply(java.math.BigDecimal.valueOf(1.1)));
-                productsToUpdate.add(product);
-                totalSize++;
+    private void writeCsv(String metric, String label, long durMs, int count) {
+        File csv = new File("performance-update-results.csv");
+        boolean header = !csv.exists() || csv.length() == 0;
+        double opsPerSec = durMs > 0 ? (count * 1000.0) / durMs : 0.0;
+        double p95 = databaseMetrics.getP95Millis(metric, activeProfile);
+        try (FileWriter w = new FileWriter(csv, true)) {
+            if (header) {
+                w.write("Operacja;Czas[ms];Liczba rekordów;Operacji/s;Profil;p95_ms;DB_operacje;DB_błędy;DB_failed_queries;DB_czas_timer_ms\n");
             }
-
-            // Aktualizuj wszystkie produkty jedną operacją
-            productRepository.saveAll(productsToUpdate);
-
-            databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
-            databaseMetrics.incrementDatabaseOperations(operation, activeProfile);
-            databaseMetrics.recordDataSize(metricName, activeProfile, totalSize);
-            long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-            databaseMetrics.recordLockWaitTime("products_table", activeProfile, durationMs);
-            databaseMetrics.recordTransactionTime(durationMs);
-        } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
-            throw e;
-        } finally {
-            databaseMetrics.stopTimer(timer, operation, activeProfile);
-        }
-
-        long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-        logPerformance(label, metricName, durationMs, totalSize);
-    }
-
-
-    void testUpdateCustomerEmails() {
-        final String label = "Aktualizacja emaili klientów";
-        final String metricName = "update_customers";
-        final String operation = "UPDATE";
-
-        log.info("Start: {}", label);
-        Timer.Sample timer = databaseMetrics.startTimer();
-        long startTime = System.nanoTime();
-
-        int totalSize = 0;
-        try {
-            List<Customer> allCustomers = customerRepository.findAll();
-            int recordsToProcess = Math.min(benchmarkConfig.getRecordCount(), allCustomers.size());
-            List<Customer> customersToUpdate = new ArrayList<>();
-
-            // Przygotuj klientów do aktualizacji
-            for (int i = 0; i < recordsToProcess; i++) {
-                Customer customer = allCustomers.get(i % allCustomers.size());
-                customer.setEmail("updated+" + customer.getId() + "_" + i + "@mail.com");
-                customersToUpdate.add(customer);
-                totalSize++;
-            }
-
-            // Aktualizuj wszystkich klientów jedną operacją
-            customerRepository.saveAll(customersToUpdate);
-
-            databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
-            databaseMetrics.incrementDatabaseOperations(operation, activeProfile);
-            databaseMetrics.recordDataSize(metricName, activeProfile, totalSize);
-            long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-            databaseMetrics.recordLockWaitTime("customers_table", activeProfile, durationMs);
-            databaseMetrics.recordTransactionTime(durationMs);
-        } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
-            throw e;
-        } finally {
-            databaseMetrics.stopTimer(timer, operation, activeProfile);
-        }
-
-        long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-        logPerformance(label, metricName, durationMs, totalSize);
-    }
-
-
-    void testUpdateOrderStatus() {
-        final String label = "Aktualizacja statusów zamówień";
-        final String metricName = "update_orders";
-        final String operation = "UPDATE";
-
-        log.info("Start: {}", label);
-        Timer.Sample timer = databaseMetrics.startTimer();
-        long startTime = System.nanoTime();
-
-        int totalSize = 0;
-        try {
-            List<Order> allOrders = orderRepository.findAll();
-            int recordsToProcess = Math.min(benchmarkConfig.getRecordCount(), allOrders.size());
-            List<Order> ordersToUpdate = new ArrayList<>();
-
-            // Przygotuj zamówienia do aktualizacji
-            for (int i = 0; i < recordsToProcess; i++) {
-                Order order = allOrders.get(i % allOrders.size());
-                order.setStatus("UPDATED_" + i);
-                ordersToUpdate.add(order);
-                totalSize++;
-            }
-
-            // Aktualizuj wszystkie zamówienia jedną operacją
-            orderRepository.saveAll(ordersToUpdate);
-
-            databaseMetrics.incrementDatabaseOperations(metricName, activeProfile);
-            databaseMetrics.incrementDatabaseOperations(operation, activeProfile);
-            databaseMetrics.recordDataSize(metricName, activeProfile, totalSize);
-            long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-            databaseMetrics.recordLockWaitTime("orders_table", activeProfile, durationMs);
-            databaseMetrics.recordTransactionTime(durationMs);
-        } catch (Exception e) {
-            databaseMetrics.incrementDatabaseErrors(metricName, activeProfile);
-            throw e;
-        } finally {
-            databaseMetrics.stopTimer(timer, operation, activeProfile);
-        }
-
-        long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-        logPerformance(label, metricName, durationMs, totalSize);
-    }
-
-    private void logPerformance(String label, String metricName, long durationMs, int recordCount) {
-        double opsCount = databaseMetrics.getOperationsCount(metricName, activeProfile);
-        double errorsCount = databaseMetrics.getErrorsCount(metricName, activeProfile);
-        double failedQueries = databaseMetrics.getFailedQueriesCount();
-        double totalOpTime = databaseMetrics.getTotalOperationTimeMillis(metricName, activeProfile);
-        double opsPerSecond = durationMs > 0 ? recordCount / (durationMs / 1000.0) : 0;
-
-        saveToCsv(label, durationMs, recordCount, activeProfile);
-    }
-
-    private void saveToCsv(String label, long durationMs, int recordCount, String profile) {
-        File csvFile = new File("performance-update-results.csv");
-        boolean writeHeader = !csvFile.exists() || csvFile.length() == 0;
-
-        try (FileWriter writer = new FileWriter(csvFile, true)) {
-            if (writeHeader) {
-                writer.write("Operacja;Czas[ms];Liczba rekordów;Operacji/s;Profil;DB_operacje;DB_błędy;DB_failed_queries;DB_czas_timer_ms\n");
-            }
-            double operationsPerSecond = (recordCount * 1000.0) / durationMs;
-            writer.write(CsvFormatter.formatCsvLine(
-                label,
-                durationMs,
-                recordCount,
-                operationsPerSecond,
-                profile,
-                databaseMetrics.getOperationsCount(label, profile),
-                databaseMetrics.getErrorsCount(label, profile),
-                databaseMetrics.getFailedQueriesCount(),
-                databaseMetrics.getTotalOperationTimeMillis(label, profile)
-            ));
+            String line = String.join(";",
+                    label, String.valueOf(durMs), String.valueOf(count),
+                    String.valueOf(opsPerSec), activeProfile,
+                    String.valueOf(Double.isNaN(p95) ? 0 : p95),
+                    String.valueOf(databaseMetrics.getOperationsCount(metric, activeProfile)),
+                    String.valueOf(databaseMetrics.getErrorsCount(metric, activeProfile)),
+                    String.valueOf(databaseMetrics.getFailedQueriesCount()),
+                    String.valueOf(databaseMetrics.getTotalOperationTimeMillis(metric, activeProfile)));
+            w.write(line + "\n");
         } catch (IOException e) {
-            log.error("Błąd podczas zapisywania wyników do CSV", e);
+            log.warn("CSV write error: {}", e.getMessage());
         }
     }
 
-    //runUpdateTests
-    public void runAll() {
-        beforeEach();
+    @Transactional
+    public void testUpdateProductPrices() {
+        final String label = "Aktualizacja cen produktów", metric = "update_products";
+        Timer.Sample t = databaseMetrics.startTimer();
+        long start = System.nanoTime();
         try {
-            testUpdateProductPrices();
-            testUpdateCustomerEmails();
-            testUpdateOrderStatus();
+            int updated = isMySql()
+                    ? productRepository.bulkIncreasePriceByPercentMySql(limit(), 10.0)
+                    : productRepository.bulkIncreasePriceByPercentPostgres(limit(), 10.0);
+            databaseMetrics.incrementDatabaseOperations(metric, activeProfile);
+            databaseMetrics.recordDataSize(metric, activeProfile, updated);
+            long dur = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            databaseMetrics.recordTransactionTime(dur);
+            writeCsv(metric, label, dur, updated);
         } catch (Exception e) {
-            log.error("Błąd podczas wykonywania testów aktualizacji: {}", e.getMessage(), e);
+            databaseMetrics.incrementDatabaseErrors(metric, activeProfile);
+            throw e;
         } finally {
-            afterEach();
+            databaseMetrics.stopTimer(t, metric, activeProfile);
         }
+    }
+
+    @Transactional
+    public void testUpdateCustomerEmails() {
+        final String label = "Aktualizacja emaili klientów", metric = "update_customers";
+        Timer.Sample t = databaseMetrics.startTimer();
+        long start = System.nanoTime();
+        try {
+            int updated = isMySql()
+                    ? customerRepository.bulkUpdateEmailsMySql(limit(), "updated")
+                    : customerRepository.bulkUpdateEmailsPostgres(limit(), "updated");
+            databaseMetrics.incrementDatabaseOperations(metric, activeProfile);
+            databaseMetrics.recordDataSize(metric, activeProfile, updated);
+            long dur = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            databaseMetrics.recordTransactionTime(dur);
+            writeCsv(metric, label, dur, updated);
+        } catch (Exception e) {
+            databaseMetrics.incrementDatabaseErrors(metric, activeProfile);
+            throw e;
+        } finally {
+            databaseMetrics.stopTimer(t, metric, activeProfile);
+        }
+    }
+
+    @Transactional
+    public void testUpdateOrderStatus() {
+        final String label = "Aktualizacja statusów zamówień", metric = "update_orders";
+        Timer.Sample t = databaseMetrics.startTimer();
+        long start = System.nanoTime();
+        try {
+            int updated = isMySql()
+                    ? orderRepository.bulkUpdateStatusMySql(limit(), "UPDATED")
+                    : orderRepository.bulkUpdateStatusPostgres(limit(), "UPDATED");
+            databaseMetrics.incrementDatabaseOperations(metric, activeProfile);
+            databaseMetrics.recordDataSize(metric, activeProfile, updated);
+            long dur = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            databaseMetrics.recordTransactionTime(dur);
+            writeCsv(metric, label, dur, updated);
+        } catch (Exception e) {
+            databaseMetrics.incrementDatabaseErrors(metric, activeProfile);
+            throw e;
+        } finally {
+            databaseMetrics.stopTimer(t, metric, activeProfile);
+        }
+    }
+
+    public void runAll() {
+        self.testUpdateProductPrices();
+        self.testUpdateCustomerEmails();
+        self.testUpdateOrderStatus();
     }
 }

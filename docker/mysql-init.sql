@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS customer (
-    id BINARY(16) PRIMARY KEY,
+    id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID(), 1)),
     first_name VARCHAR(100),
     last_name VARCHAR(100),
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS customer (
 );
 
 CREATE TABLE IF NOT EXISTS product_category (
-    id BINARY(16) PRIMARY KEY,
+    id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID(), 1)),
     name VARCHAR(100),
     description VARCHAR(500),
     parent_category_id BINARY(16),
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS product_category (
 );
 
 CREATE TABLE IF NOT EXISTS brand (
-    id BINARY(16) PRIMARY KEY,
+    id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID(), 1)),
     name VARCHAR(100),
     description VARCHAR(500),
     website VARCHAR(255),
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS brand (
 );
 
 CREATE TABLE IF NOT EXISTS product (
-    id BINARY(16) PRIMARY KEY,
+    id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID(), 1)),
     name VARCHAR(255),
     description VARCHAR(1000),
     price DECIMAL(10,2),
@@ -64,9 +64,9 @@ CREATE TABLE IF NOT EXISTS product (
 );
 
 CREATE TABLE IF NOT EXISTS orders (
-    id BINARY(16) PRIMARY KEY,
+    id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID(), 1)),
     customer_id BINARY(16),
-    order_number VARCHAR(50) UNIQUE,
+    order_number BINARY(16) UNIQUE,
     status VARCHAR(20) DEFAULT 'NEW',
     total_amount DECIMAL(10,2),
     shipping_address_street VARCHAR(255),
@@ -90,8 +90,9 @@ CREATE TABLE IF NOT EXISTS orders (
     FOREIGN KEY (customer_id) REFERENCES customer(id)
 );
 
+
 CREATE TABLE IF NOT EXISTS order_item (
-    id BINARY(16) PRIMARY KEY,
+    id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID(), 1)),
     order_id BINARY(16),
     product_id BINARY(16),
     quantity INT,
@@ -107,7 +108,7 @@ CREATE TABLE IF NOT EXISTS order_item (
 );
 
 CREATE TABLE IF NOT EXISTS product_review (
-    id BINARY(16) PRIMARY KEY,
+    id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID(), 1)),
     product_id BINARY(16),
     customer_id BINARY(16),
     rating INT CHECK (rating BETWEEN 1 AND 5),
@@ -122,7 +123,7 @@ CREATE TABLE IF NOT EXISTS product_review (
 );
 
 CREATE TABLE IF NOT EXISTS inventory_movement (
-    id BINARY(16) PRIMARY KEY,
+    id BINARY(16) PRIMARY KEY DEFAULT (UUID_TO_BIN(UUID(), 1)),
     product_id BINARY(16),
     movement_type VARCHAR(20),
     quantity INT,
