@@ -18,6 +18,10 @@ public class DataGenerator {
         this.random = new Random();
     }
 
+    public Faker getFaker() {
+        return faker;
+    }
+
     public Customer generateCustomer() {
         Customer customer = new Customer();
         customer.setFirstName(faker.name().firstName());

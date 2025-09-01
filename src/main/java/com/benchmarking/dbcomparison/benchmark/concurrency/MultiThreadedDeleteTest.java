@@ -30,20 +30,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MultiThreadedDeleteTest {
 
     private static final String METRIC_NAME = "customer_multithreaded_delete";
+
     @Value("${spring.profiles.active:unknown}")
     private String activeProfile;
-    @Autowired
-    private CustomerRepository customerRepository;
-    @Autowired
-    private OrderRepository orderRepository;
-    @Autowired
-    private OrderItemRepository orderItemRepository;
-    @Autowired
-    private ProductReviewRepository productReviewRepository;
-    @Autowired
-    private DatabaseMetrics databaseMetrics;
-    @Autowired
-    private BenchmarkConfig benchmarkConfig;
+
+    @Autowired private CustomerRepository customerRepository;
+    @Autowired private OrderRepository orderRepository;
+    @Autowired private OrderItemRepository orderItemRepository;
+    @Autowired private ProductReviewRepository productReviewRepository;
+    @Autowired private DatabaseMetrics databaseMetrics;
+    @Autowired private BenchmarkConfig benchmarkConfig;
 
     static void setupGenerator() {
         new DataGenerator(); // opcjonalnie, jeśli potrzebne
@@ -52,7 +48,7 @@ public class MultiThreadedDeleteTest {
     //runAllTests
     public void runAllTests() throws InterruptedException {
         int configuredThreads = Math.max(1, benchmarkConfig.getThreads());
-        int totalRecords = benchmarkConfig.getRecordCount();
+        int totalRecords = Math.max(1, benchmarkConfig.getRecordCount());
 
         // Najpierw usuwamy powiązane rekordy
         deleteRelatedRecords(Math.min(configuredThreads, totalRecords));
@@ -68,14 +64,14 @@ public class MultiThreadedDeleteTest {
 
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch latch = new CountDownLatch(threadCount);
-        AtomicInteger successCounter = new AtomicInteger();
-        AtomicInteger errorCounter = new AtomicInteger();
-
-        List<Long> threadDurations = new CopyOnWriteArrayList<>();
+        java.util.List<Long> threadDurations = new CopyOnWriteArrayList<>();
 
         long startTime = System.nanoTime();
         int base = totalRecords / threadCount;
         int remainder = totalRecords % threadCount;
+
+        final AtomicInteger successCounter = new AtomicInteger();
+        final AtomicInteger errorCounter = new AtomicInteger();
 
         for (int i = 0; i < threadCount; i++) {
             int startIdx = i * base + Math.min(i, remainder);
@@ -109,6 +105,10 @@ public class MultiThreadedDeleteTest {
 
         latch.await();
         executor.shutdown();
+        if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+            log.warn("DELETE executor timeout – forcing shutdownNow()");
+            executor.shutdownNow();
+        }
 
         long totalDuration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
         double avgThreadTime = threadDurations.stream().mapToLong(Long::longValue).average().orElse(0);
@@ -133,9 +133,7 @@ public class MultiThreadedDeleteTest {
     }
 
     private <T> void deleteInBatches(List<T> entities, JpaRepository<T, ?> repository, String metricName, int threadCount) throws InterruptedException {
-        if (entities.isEmpty()) {
-            return;
-        }
+        if (entities.isEmpty()) return;
 
         int actualThreads = Math.min(threadCount, entities.size());
         ExecutorService executor = Executors.newFixedThreadPool(actualThreads);
@@ -166,6 +164,10 @@ public class MultiThreadedDeleteTest {
 
         latch.await();
         executor.shutdown();
+        if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+            log.warn("DELETE-batches executor timeout – forcing shutdownNow()");
+            executor.shutdownNow();
+        }
     }
 
     private void logPerformance(long totalDuration, double avgThreadTime, int totalSuccess, int totalErrors, int threads, double opsPerSecond) {
@@ -189,6 +191,4 @@ public class MultiThreadedDeleteTest {
             log.error("Błąd zapisu wyników wielowątkowego DELETE do CSV", e);
         }
     }
-
-
 }

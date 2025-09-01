@@ -37,8 +37,8 @@ management:
       application: ${spring.application.name}
 
 benchmark:
-  recordCount: 1000
-  threads: 8
+  recordCount: 10000
+  threads: 32
   batchSize: 1000
   warmupPercent: 1
   isolation: "READ_COMMITTED"

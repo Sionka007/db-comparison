@@ -22,18 +22,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MultiThreadedReadTest {
 
     private static final String METRIC_NAME = "customer_multithreaded_read";
+
     @Value("${spring.profiles.active:unknown}")
     private String activeProfile;
-    @Autowired
-    private CustomerRepository customerRepository;
-    @Autowired
-    private DatabaseMetrics databaseMetrics;
-    @Autowired
-    private BenchmarkConfig benchmarkConfig;
+
+    @Autowired private CustomerRepository customerRepository;
+    @Autowired private DatabaseMetrics databaseMetrics;
+    @Autowired private BenchmarkConfig benchmarkConfig;
 
     void testMultiThreadedRead() throws InterruptedException {
         int configuredThreads = Math.max(1, benchmarkConfig.getThreads());
-        int totalRecords = benchmarkConfig.getRecordCount();
+        int totalRecords = Math.max(1, benchmarkConfig.getRecordCount());
 
         List<Customer> allCustomers = customerRepository.findAll();
         if (allCustomers.size() < totalRecords) {
@@ -64,17 +63,15 @@ public class MultiThreadedReadTest {
                 long threadStart = System.nanoTime();
 
                 try {
-                    customersSlice.forEach(c -> {
+                    for (Customer c : customersSlice) {
                         if (customerRepository.findById(c.getId()).isPresent()) {
                             successCounter.incrementAndGet();
                         } else {
                             errorCounter.incrementAndGet();
                         }
-                    });
-
+                    }
                     databaseMetrics.incrementDatabaseOperations(METRIC_NAME, activeProfile);
                     databaseMetrics.recordDataSize(METRIC_NAME, activeProfile, customersSlice.size());
-
                 } catch (Exception e) {
                     log.error("Błąd w wątku READ", e);
                     databaseMetrics.incrementDatabaseErrors(METRIC_NAME, activeProfile);
@@ -91,13 +88,16 @@ public class MultiThreadedReadTest {
 
         latch.await();
         executor.shutdown();
+        if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+            log.warn("READ executor timeout – forcing shutdownNow()");
+            executor.shutdownNow();
+        }
 
         long totalDuration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
         double avgThreadTime = threadDurations.stream().mapToLong(Long::longValue).average().orElse(0);
         double opsPerSecond = totalDuration > 0 ? successCounter.get() / (totalDuration / 1000.0) : 0;
 
         log.info("Zakończono test wielowątkowy READ: {} rekordów w {} ms", successCounter.get(), totalDuration);
-
         logPerformance(totalDuration, avgThreadTime, successCounter.get(), errorCounter.get(), threadDurations.size(), opsPerSecond);
     }
 

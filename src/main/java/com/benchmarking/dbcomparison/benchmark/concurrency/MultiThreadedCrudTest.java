@@ -19,19 +19,13 @@ public class MultiThreadedCrudTest {
     @Value("${spring.profiles.active:unknown}")
     private String activeProfile;
 
-    @Autowired
-    private MultiThreadedInsertTest insertTest;
-    @Autowired
-    private MultiThreadedReadTest readTest;
-    @Autowired
-    private MultiThreadedUpdateTest updateTest;
-    @Autowired
-    private MultiThreadedDeleteTest deleteTest;
-    @Autowired
-    private InsertPerformanceTest insertPerformanceTest;
+    @Autowired private MultiThreadedInsertTest insertTest;
+    @Autowired private MultiThreadedReadTest readTest;
+    @Autowired private MultiThreadedUpdateTest updateTest;
+    @Autowired private MultiThreadedDeleteTest deleteTest;
+    @Autowired private InsertPerformanceTest insertPerformanceTest;
 
     private String timestamp;
-
 
     void setUp() {
         timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
@@ -57,12 +51,10 @@ public class MultiThreadedCrudTest {
         insertTest.testMultiThreadedInsert();
     }
 
-
     void testMultiThreadedRead() throws InterruptedException {
         log.info("Uruchamiam wielowątkowy test READ...");
         readTest.testMultiThreadedRead();
     }
-
 
     void testMultiThreadedUpdate() throws InterruptedException {
         log.info("Uruchamiam wielowątkowy test UPDATE...");
@@ -96,7 +88,10 @@ public class MultiThreadedCrudTest {
             if (file.exists()) {
                 String backupName = filename.replace(".csv", String.format("_%s.csv", timestamp));
                 Files.copy(file.toPath(), Path.of(backupName));
-                file.delete();
+                // czyścimy plik na nowe wyniki
+                if (!file.delete()) {
+                    log.warn("Nie udało się usunąć starego pliku: {}", filename);
+                }
             }
         } catch (Exception e) {
             log.error("Błąd podczas tworzenia kopii zapasowej pliku: {}", filename, e);
@@ -106,7 +101,10 @@ public class MultiThreadedCrudTest {
     private void archiveResultFiles() {
         try {
             String resultDir = String.format("results_multithread_%s_%s", activeProfile, timestamp);
-            new File(resultDir).mkdirs();
+            File dir = new File(resultDir);
+            if (!dir.exists() && !dir.mkdirs()) {
+                log.warn("Nie udało się utworzyć katalogu wyników: {}", resultDir);
+            }
 
             moveIfExists("performance-multithread-insert.csv", resultDir);
             moveIfExists("performance-multithread-read.csv", resultDir);
@@ -133,10 +131,12 @@ public class MultiThreadedCrudTest {
     //runAllTests
     public void runAllTests() throws InterruptedException {
         log.info("Rozpoczynam testy wielowątkowe CRUD");
+        setUp();
         testMultiThreadedInsert();
         testMultiThreadedRead();
         testMultiThreadedUpdate();
         testMultiThreadedDelete();
+        tearDown();
         log.info("Zakończono testy wielowątkowe CRUD");
     }
 }

@@ -23,24 +23,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MultiThreadedUpdateTest {
 
     private static final String METRIC_NAME = "customer_multithreaded_update";
-    private final DataGenerator dataGenerator;
+
+    /** Thread-safe generator per wątek (jeśli kiedyś będziesz losował dane w update) */
+    private static final ThreadLocal<DataGenerator> TL_GEN =
+            ThreadLocal.withInitial(DataGenerator::new);
+
     @Value("${spring.profiles.active:unknown}")
     private String activeProfile;
-    @Autowired
-    private CustomerRepository customerRepository;
-    @Autowired
-    private DatabaseMetrics databaseMetrics;
-    @Autowired
-    private BenchmarkConfig benchmarkConfig;
 
-    public MultiThreadedUpdateTest() {
-        this.dataGenerator = new DataGenerator();
-    }
-
+    @Autowired private CustomerRepository customerRepository;
+    @Autowired private DatabaseMetrics databaseMetrics;
+    @Autowired private BenchmarkConfig benchmarkConfig;
 
     void testMultiThreadedUpdate() throws InterruptedException {
         int configuredThreads = Math.max(1, benchmarkConfig.getThreads());
-        int totalRecords = benchmarkConfig.getRecordCount();
+        int totalRecords = Math.max(1, benchmarkConfig.getRecordCount());
 
         List<Customer> allCustomers = customerRepository.findAll();
         if (allCustomers.size() < totalRecords) {
@@ -71,7 +68,9 @@ public class MultiThreadedUpdateTest {
                 Timer.Sample timer = databaseMetrics.startTimer();
                 long threadStart = System.nanoTime();
                 try {
-                    customersSlice.forEach(c -> c.setEmail("updated+" + c.getId() + "@mail.com"));
+                    for (Customer c : customersSlice) {
+                        c.setEmail("updated+" + c.getId() + "@mail.com");
+                    }
                     customerRepository.saveAll(customersSlice);
 
                     databaseMetrics.incrementDatabaseOperations(METRIC_NAME, activeProfile);
@@ -94,6 +93,10 @@ public class MultiThreadedUpdateTest {
 
         latch.await();
         executor.shutdown();
+        if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+            log.warn("UPDATE executor timeout – forcing shutdownNow()");
+            executor.shutdownNow();
+        }
 
         long totalDuration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
         double avgThreadTime = threadDurations.stream().mapToLong(Long::longValue).average().orElse(0);
@@ -125,14 +128,13 @@ public class MultiThreadedUpdateTest {
         }
     }
 
-    //runAllTests method to run the test
+    //runAllTests
     public void runAllTests() {
         try {
             testMultiThreadedUpdate();
         } catch (InterruptedException e) {
             log.error("Błąd podczas wykonywania testu wielowątkowego UPDATE", e);
-            Thread.currentThread().interrupt(); // Restore interrupted status
+            Thread.currentThread().interrupt();
         }
     }
-
 }
